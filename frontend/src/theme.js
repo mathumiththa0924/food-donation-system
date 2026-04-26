@@ -1,0 +1,17 @@
+export const COLORS = {
+  forest: "#1a3a2a",
+  forestMid: "#234d38",
+  forestLight: "#2d6347",
+  sage: "#4a8c6a",
+  mint: "#7ec8a0",
+  cream: "#fdf6ec",
+  warmWhite: "#fffaf4",
+  amber: "#e8923a",
+  amberLight: "#f4b96e",
+  gold: "#d4a017",
+  charcoal: "#1c2b22",
+  textMuted: "#5a7a65",
+  cardBg: "rgba(253,246,236,0.08)",
+  glassBg: "rgba(255,255,255,0.07)",
+  glassBorder: "rgba(255,255,255,0.15)",
+};
