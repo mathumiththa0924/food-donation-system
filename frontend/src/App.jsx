@@ -911,6 +911,21 @@ function NgoDashboard({ onLogout }) {
 
 function AdminDashboard({ onLogout }) {
   const [page, setPage] = useState("adminHome");
+  const [allDonations, setAllDonations] = useState([
+    { id: 1, food: "Rice & Curry Packs", donor: "Green Leaf Restaurant", quantity: 20, location: "Colombo", status: "pending", date: "Apr 18, 2026" },
+    { id: 2, food: "Fresh Bread Loaves", donor: "Golden Bakery", quantity: 30, location: "Kandy", status: "pending", date: "Apr 17, 2026" },
+    { id: 3, food: "Mixed Vegetables", donor: "City Market Puttalam", quantity: 15, location: "Galle", status: "approved", date: "Apr 16, 2026" },
+    { id: 4, food: "Cooked Pasta Trays", donor: "Ocean View Hotel", quantity: 25, location: "Negombo", status: "rejected", date: "Apr 15, 2026" },
+  ]);
+  const [viewItem, setViewItem] = useState(null);
+  const approvalColors = { pending: COLORS.amber, approved: "#4CAF50", rejected: "#e74c3c" };
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const setDonationStatus = (id, status) =>
+    setAllDonations((ds) => ds.map((d) => (d.id === id ? { ...d, status } : d)));
+  const deleteDonationRow = (id) => {
+    setAllDonations((ds) => ds.filter((d) => d.id !== id));
+    setViewItem((cur) => (cur && cur.id === id ? null : cur));
+  };
   const users = [
     { name: "Green Leaf Restaurant", role: "Donor", donations: 42, status: "Active", joined: "Jan 2026" },
     { name: "Mary Fernando", role: "NGO", donations: 0, requests: 8, status: "Active", joined: "Feb 2026" },
@@ -1008,11 +1023,39 @@ function AdminDashboard({ onLogout }) {
             </div>
           </div>
         )}
-        {(page === "donations" || page === "settings") && (
+        {page === "donations" && (
           <div>
-            <h2 style={{ color: "white", fontFamily: "'Georgia', serif", fontSize: 26, margin: "0 0 20px" }}>
-              {page === "donations" ? "📦 All Donations" : "⚙️ Settings"}
-            </h2>
+            <h2 style={{ color: "white", fontFamily: "'Georgia', serif", fontSize: 26, margin: "0 0 20px" }}>📦 All Donations</h2>
+            <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, overflow: "hidden" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1.2fr 0.8fr 1.8fr", gap: 0, padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>
+                <span>Food Item</span><span>Donor</span><span>Status</span><span>Posted Date</span><span>View</span><span>Action</span>
+              </div>
+              {allDonations.length === 0 ? (
+                <div style={{ padding: "24px 20px", color: "rgba(255,255,255,0.4)" }}>No donations yet.</div>
+              ) : (
+                allDonations.map((d) => (
+                  <div key={d.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1.2fr 0.8fr 1.8fr", gap: 0, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center" }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "white" }}>{d.food}</span>
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>{d.donor}</span>
+                    <span style={{ fontSize: 12, color: approvalColors[d.status], fontWeight: 600 }}>● {cap(d.status)}</span>
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{d.date}</span>
+                    <span>
+                      <button onClick={() => setViewItem(d)} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "white", fontSize: 12, padding: "6px 12px", borderRadius: 8, cursor: "pointer" }}>View</button>
+                    </span>
+                    <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button onClick={() => setDonationStatus(d.id, "approved")} disabled={d.status === "approved"} style={{ background: d.status === "approved" ? "rgba(76,175,80,0.2)" : "rgba(76,175,80,0.85)", border: "none", color: "white", fontSize: 12, padding: "6px 10px", borderRadius: 8, cursor: d.status === "approved" ? "default" : "pointer", opacity: d.status === "approved" ? 0.5 : 1 }}>Approve</button>
+                      <button onClick={() => setDonationStatus(d.id, "rejected")} disabled={d.status === "rejected"} style={{ background: d.status === "rejected" ? "rgba(231,76,60,0.2)" : "rgba(231,76,60,0.85)", border: "none", color: "white", fontSize: 12, padding: "6px 10px", borderRadius: 8, cursor: d.status === "rejected" ? "default" : "pointer", opacity: d.status === "rejected" ? 0.5 : 1 }}>Reject</button>
+                      <button onClick={() => deleteDonationRow(d.id)} style={{ background: "transparent", border: "1px solid rgba(231,76,60,0.5)", color: "#ff9b8f", fontSize: 12, padding: "6px 10px", borderRadius: 8, cursor: "pointer" }}>Delete</button>
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+        {page === "settings" && (
+          <div>
+            <h2 style={{ color: "white", fontFamily: "'Georgia', serif", fontSize: 26, margin: "0 0 20px" }}>⚙️ Settings</h2>
             <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.4)" }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>🚧</div>
               <p>This section is under development.</p>
@@ -1020,6 +1063,26 @@ function AdminDashboard({ onLogout }) {
           </div>
         )}
       </div>
+      {viewItem && (
+        <div onClick={() => setViewItem(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 420, maxWidth: "90vw", background: "#1f3a2c", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 18, padding: "26px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <h3 style={{ color: "white", margin: 0, fontFamily: "'Georgia', serif" }}>Donation Details</h3>
+              <button onClick={() => setViewItem(null)} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 20, cursor: "pointer" }}>×</button>
+            </div>
+            {[["Food Item", viewItem.food], ["Donor", viewItem.donor], ["Quantity", viewItem.quantity], ["Location", viewItem.location], ["Posted Date", viewItem.date]].map(([label, value]) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", fontSize: 14 }}>
+                <span style={{ color: "rgba(255,255,255,0.5)" }}>{label}</span>
+                <span style={{ color: "white", fontWeight: 500 }}>{value}</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 14 }}>
+              <span style={{ color: "rgba(255,255,255,0.5)" }}>Status</span>
+              <span style={{ color: approvalColors[viewItem.status], fontWeight: 600 }}>● {cap(viewItem.status)}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
