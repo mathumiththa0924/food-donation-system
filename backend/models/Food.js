@@ -22,6 +22,11 @@ const foodSchema = new mongoose.Schema({
     type: String,
     enum: ['available', 'donated'],
     default: 'available'
+  },
+  approvalStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
   }
 }, { timestamps: true });
 

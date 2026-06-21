@@ -1,4 +1,5 @@
 const Food = require('../models/Food');
+const mongoose = require('mongoose');
 
 // CREATE DONATION
 const createDonation = async (req, res) => {
@@ -58,7 +59,87 @@ const getDonations = async (req, res) => {
   }
 };
 
+// GET ALL DONATIONS (admin)
+const getAllDonations = async (req, res) => {
+  try {
+    const donations = await Food.find()
+      .populate("donor", "name email")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      message: "Donations fetched successfully",
+      data: donations,
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// UPDATE APPROVAL STATUS (admin)
+const updateApprovalStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { approvalStatus } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid donation id" });
+    }
+
+    const validStatuses = ['pending', 'approved', 'rejected'];
+    if (!validStatuses.includes(approvalStatus)) {
+      return res.status(400).json({ success: false, message: "Invalid approval status" });
+    }
+
+    const food = await Food.findById(id);
+    if (!food) {
+      return res.status(404).json({ success: false, message: "Donation not found" });
+    }
+
+    food.approvalStatus = approvalStatus;
+    await food.save();
+
+    res.json({
+      success: true,
+      message: `Donation ${approvalStatus}`,
+      data: food,
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// DELETE DONATION (admin)
+const deleteDonation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid donation id" });
+    }
+
+    const food = await Food.findByIdAndDelete(id);
+    if (!food) {
+      return res.status(404).json({ success: false, message: "Donation not found" });
+    }
+
+    res.json({
+      success: true,
+      message: "Donation deleted successfully",
+      data: food,
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createDonation,
-  getDonations
+  getDonations,
+  getAllDonations,
+  updateApprovalStatus,
+  deleteDonation
 };
