@@ -11,10 +11,25 @@ const requestSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  qty: {
+    type: Number,
+    required: true
+  },
+  message: {
+    type: String,
+    default: ''
+  },
+  estimatedPickupTime: {
+    type: Date
+  },
   status: {
     type: String,
-    enum: ['Pending', 'Picked', 'Delivered'],
-    default: 'Pending'
+    enum: ['pending', 'accepted', 'rejected', 'picked_up', 'completed'],
+    default: 'pending'
+  },
+  feedbackSubmitted: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 

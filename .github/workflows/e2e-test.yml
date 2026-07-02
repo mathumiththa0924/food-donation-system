@@ -1,0 +1,42 @@
+name: Cypress E2E Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  cypress-run:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (Root, Frontend, Backend)
+        run: |
+          npm install
+          cd frontend && npm install
+          cd ../backend && npm install
+
+      - name: Start Backend Server
+        run: |
+          cd backend
+          npm start &
+        
+      - name: Start Frontend Server
+        run: |
+          cd frontend
+          npm run dev &
+
+      - name: Wait for servers to be ready and run Cypress
+        uses: cypress-io/github-action@v6
+        with:
+          wait-on: 'http://localhost:5173'
+          wait-on-timeout: 120

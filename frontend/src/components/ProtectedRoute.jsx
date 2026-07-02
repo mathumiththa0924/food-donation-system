@@ -1,7 +1,7 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
 
-export default function ProtectedRoute({ children, role }) {
+export default function ProtectedRoute({ children, role, allowedRoles }) {
   const token = localStorage.getItem("token");
   let user = null;
   try {
@@ -14,7 +14,10 @@ export default function ProtectedRoute({ children, role }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (role && user.role !== role) {
+  // Check single role or multiple allowed roles
+  const rolesToCheck = allowedRoles || (role ? [role] : []);
+  
+  if (rolesToCheck.length > 0 && !rolesToCheck.includes(user.role)) {
     return <Navigate to="/login" replace />;
   }
 

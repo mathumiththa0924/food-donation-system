@@ -109,7 +109,6 @@ function Input({ label, type = "text", placeholder, value, onChange, icon }) {
             outline: "none",
             transition: "all 0.2s",
             boxSizing: "border-box",
-            fontFamily: "inherit",
           }}
         />
       </div>
@@ -136,7 +135,6 @@ function Select({ label, options, value, onChange }) {
           fontSize: 15,
           outline: "none",
           cursor: "pointer",
-          fontFamily: "inherit",
           appearance: "none",
           WebkitAppearance: "none",
           backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.5)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
@@ -165,7 +163,6 @@ function Btn({ children, onClick, variant = "primary", disabled = false, style =
     cursor: disabled ? "not-allowed" : "pointer",
     border: "none",
     transition: "all 0.25s",
-    fontFamily: "inherit",
     letterSpacing: "0.3px",
     opacity: disabled ? 0.5 : 1,
   };
@@ -527,7 +524,7 @@ function DonorDashboard({ onLogout }) {
               placeholder="Any special instructions, dietary info, allergens..."
               value={form.notes}
               onChange={set("notes")}
-              style={{ width: "100%", padding: "14px 16px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 12, color: "white", fontSize: 15, outline: "none", resize: "vertical", minHeight: 80, fontFamily: "inherit", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "14px 16px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 12, color: "white", fontSize: 15, outline: "none", resize: "vertical", minHeight: 80, boxSizing: "border-box" }}
             />
           </div>
           <div style={{ gridColumn: "1/-1" }}>
@@ -693,11 +690,13 @@ function NgoDashboard({ onLogout }) {
 
     return (
       <div>
-        <h2 style={{ color: "white", fontFamily: "'Georgia', serif", fontSize: 26, margin: "0 0 20px" }}>🔍 Browse Available Food</h2>
+        <h2 style={{ color: "white", fontFamily: "'Georgia', serif", fontSize: 28, margin: "0 0 20px", display: "flex", alignItems: "center", gap: 10 }}>
+        🔍 Browse Available Food
+      </h2>
         <Input label="" placeholder="Search food items..." value={search} onChange={e => setSearch(e.target.value)} icon="🔍" />
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
           {["all", "cooked", "raw", "bakery"].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ padding: "8px 18px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.2)", background: filter === f ? COLORS.amber : "rgba(255,255,255,0.06)", color: "white", fontSize: 13, cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize" }}>
+            <button key={f} onClick={() => setFilter(f)} style={{ padding: "8px 18px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.2)", background: filter === f ? COLORS.amber : "rgba(255,255,255,0.06)", color: "white", fontSize: 13, cursor: "pointer", textTransform: "capitalize" }}>
               {f === "all" ? "All Items" : f}
             </button>
           ))}
@@ -744,7 +743,10 @@ function NgoDashboard({ onLogout }) {
           <StatCard icon="✅" label="Received" value="8" color="#7ec8a0" sub="Total meals" />
         </div>
         <div style={{ background: "rgba(74,140,106,0.1)", border: "1px solid rgba(74,140,106,0.25)", borderRadius: 18, padding: "20px 22px", marginBottom: 24 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "white", marginBottom: 14 }}>🗺️ Available Food Near You</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 18, fontWeight: 700, color: "white", marginBottom: 14 }}>
+            <span>🗺️</span>
+            <span>Available Food Near You</span>
+          </div>
           {available.slice(0, 3).map(item => (
             <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
               <span style={{ fontSize: 24 }}>{item.emoji}</span>

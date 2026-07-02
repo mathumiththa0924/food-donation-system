@@ -13,7 +13,6 @@ export default function Btn({ children, onClick, variant = "primary", disabled =
     cursor: disabled ? "not-allowed" : "pointer",
     border: "none",
     transition: "all 0.25s",
-    fontFamily: "inherit",
     letterSpacing: "0.3px",
     opacity: disabled ? 0.5 : 1,
   };
@@ -28,7 +27,7 @@ export default function Btn({ children, onClick, variant = "primary", disabled =
     secondary: {
       background: hov ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.07)",
       color: "white",
-      border: "1px solid rgba(255,255,255,0.2)",
+      border: "1px solid rgba(255,255,255,0.1)",
     },
     danger: {
       background: hov ? "#c0392b" : "#e74c3c",

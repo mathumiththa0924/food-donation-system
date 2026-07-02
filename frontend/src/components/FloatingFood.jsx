@@ -1,6 +1,6 @@
-import React, { useRef } from "react";
+import { useRef } from "react";
 
-const foodItems = ["🍱", "🥘", "🍲", "🥗", "🍞", "🥦", "🍅", "🥕", "🍎", "🥚", "🧆", "🫕"];
+const foodItems = ["🍱","🥘","🍲","🥗","🍞","🥦","🍅","🥕","🍎","🥚","🧆","🫕"];
 
 export default function FloatingFood({ count = 12 }) {
   const items = useRef(
@@ -32,6 +32,11 @@ export default function FloatingFood({ count = 12 }) {
           {item.emoji}
         </div>
       ))}
+      <style>{`
+        @keyframes floatFood0 { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-20px) rotate(8deg)} }
+        @keyframes floatFood1 { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-28px) rotate(-6deg)} }
+        @keyframes floatFood2 { 0%,100%{transform:translateY(0) rotate(0deg)} 33%{transform:translateY(-15px) rotate(10deg)} 66%{transform:translateY(-25px) rotate(-4deg)} }
+      `}</style>
     </div>
   );
 }

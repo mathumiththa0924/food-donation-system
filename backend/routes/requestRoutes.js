@@ -12,13 +12,13 @@ const { protect, authorizeRoles } = require("../middleware/authMiddleware");
 const router = express.Router();
 
 // 🏥 NGO creates request
-router.post("/", protect, authorizeRoles("ngo"), createRequest);
+router.post("/", protect, authorizeRoles("ngo", "admin"), createRequest);
 
 // 📄 GET requests
-router.get("/", protect, authorizeRoles("ngo", "admin"), getRequests);
+router.get("/", protect, authorizeRoles("ngo", "admin", "donor"), getRequests);
 
 // 🔄 UPDATE status
-router.put("/:id", protect, authorizeRoles("admin", "ngo"), updateStatus);
+router.put("/:id", protect, authorizeRoles("admin", "ngo", "donor"), updateStatus);
 
 // export
 module.exports = router;

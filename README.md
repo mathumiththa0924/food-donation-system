@@ -28,6 +28,11 @@ Welcome! Here's a guide to all the documentation files to help you understand an
    - Common issues and solutions
    - **Best for**: Testing APIs, debugging integration issues
 
+4. **[PROJECT_PROPOSAL_REPORT.md](./docs/PROJECT_PROPOSAL_REPORT.md)**
+   - Full project proposal and report for the food donation system
+   - Includes scope, methodology, objectives, technologies, and timeline
+   - **Best for**: Project submission, evaluation, and planning
+
 ### Frontend Documentation
 
 4. **[frontend/README.md](./frontend/README.md)**
