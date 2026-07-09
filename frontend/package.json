@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:admin": "vite -c vite.admin.config.js",
     "build": "vite build",
+    "build:admin": "vite build -c vite.admin.config.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -14,6 +16,7 @@
     "@types/leaflet": "^1.9.21",
     "axios": "^1.15.2",
     "leaflet": "^1.9.4",
+    "leaflet-routing-machine": "^3.2.12",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-hot-toast": "^2.6.0",

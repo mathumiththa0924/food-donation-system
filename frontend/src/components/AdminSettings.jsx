@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { COLORS } from "../theme";
 
@@ -53,37 +53,41 @@ const InputField = ({ label, type = "text", value, onChange, required = false })
   </label>
 );
 
+const SaveButton = ({ text = "Save Changes", loading }) => (
+  <button type="submit" disabled={loading} style={{ 
+    padding: "14px 24px", background: COLORS.amber, color: "#000", 
+    fontWeight: "600", fontSize: "15px", border: "none", borderRadius: "10px", 
+    cursor: "pointer", marginTop: "20px", width: "100%",
+    boxShadow: `0 4px 14px ${COLORS.amber}40`, transition: "transform 0.2s, box-shadow 0.2s"
+  }}
+  onMouseEnter={e => { e.target.style.transform = "translateY(-2px)"; e.target.style.boxShadow = `0 6px 20px ${COLORS.amber}60`; }}
+  onMouseLeave={e => { e.target.style.transform = "translateY(0)"; e.target.style.boxShadow = `0 4px 14px ${COLORS.amber}40`; }}
+  >
+    {loading ? "Saving..." : text}
+  </button>
+);
+
+// eslint-disable-next-line no-unused-vars
 export default function AdminSettings({ user, token, setUser }) {
   const [activeTab, setActiveTab] = useState("profile");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
 
   const api = axios.create({
-    baseURL: "http://localhost:5000/api",
+    baseURL: `http://${window.location.hostname}:5000/api`,
     headers: { Authorization: `Bearer ${token}` }
   });
 
   // Profile State
-  const [profile, setProfile] = useState({ name: "", email: "", phone: "", profileImage: null });
+  const [profile, setProfile] = useState({ name: "", email: "", phone: "", profileImage: "" });
   const [profilePreview, setProfilePreview] = useState("");
   
-  // Password State
-  const [password, setPassword] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
-
-  // Platform Settings State
+  // Platform Information State
   const [settings, setSettings] = useState({
     websiteName: "", contactEmail: "", contactPhone: "", address: "",
     socialFacebook: "", socialTwitter: "", socialInstagram: "",
-    cookedFoodExpiryHours: 6, packedFoodExpiryDays: 3, autoRemoveExpired: true,
-    emailNotifications: true, adminAlerts: true,
-    autoBlockSpam: false, ngoVerificationRequired: true,
-    jwtExpiryHours: 24, sessionTimeoutMins: 60, maintenanceMode: false, googleMapsApiKey: ""
+    emailNotifications: true, adminAlerts: true
   });
-
-  useEffect(() => {
-    fetchSettings();
-    fetchProfile();
-  }, []);
 
   const fetchProfile = async () => {
     try {
@@ -114,6 +118,12 @@ export default function AdminSettings({ user, token, setUser }) {
       console.error("Error fetching settings", err);
     }
   };
+
+  useEffect(() => {
+    fetchSettings();
+     
+    fetchProfile();
+  }, []);
 
   const showMessage = (text, type = "success") => {
     setMessage({ text, type });
@@ -164,22 +174,6 @@ export default function AdminSettings({ user, token, setUser }) {
     setLoading(false);
   };
 
-  const handlePasswordSave = async (e) => {
-    e.preventDefault();
-    if (password.newPassword !== password.confirmPassword) {
-      return showMessage("Passwords do not match", "error");
-    }
-    setLoading(true);
-    try {
-      await api.put("/auth/password", { currentPassword: password.currentPassword, newPassword: password.newPassword });
-      showMessage("Password updated successfully");
-      setPassword({ currentPassword: "", newPassword: "", confirmPassword: "" });
-    } catch (err) {
-      showMessage(err.response?.data?.message || "Error updating password", "error");
-    }
-    setLoading(false);
-  };
-
   const handleSettingsSave = async (e) => {
     if(e) e.preventDefault();
     setLoading(true);
@@ -194,25 +188,8 @@ export default function AdminSettings({ user, token, setUser }) {
 
   const tabs = [
     { id: "profile", label: "Profile", icon: "👤" },
-    { id: "security", label: "Security", icon: "🔐" },
-    { id: "system", label: "System Info", icon: "🌐" },
-    { id: "policies", label: "Platform Policies", icon: "🛡️" },
-    { id: "advanced", label: "Advanced", icon: "⚙️" },
+    { id: "system", label: "System Info", icon: "🌐" }
   ];
-
-  const SaveButton = ({ text = "Save Changes" }) => (
-    <button type="submit" disabled={loading} style={{ 
-      padding: "14px 24px", background: COLORS.amber, color: "#000", 
-      fontWeight: "600", fontSize: "15px", border: "none", borderRadius: "10px", 
-      cursor: "pointer", marginTop: "20px", width: "100%",
-      boxShadow: `0 4px 14px ${COLORS.amber}40`, transition: "transform 0.2s, box-shadow 0.2s"
-    }}
-    onMouseEnter={e => { e.target.style.transform = "translateY(-2px)"; e.target.style.boxShadow = `0 6px 20px ${COLORS.amber}60`; }}
-    onMouseLeave={e => { e.target.style.transform = "translateY(0)"; e.target.style.boxShadow = `0 4px 14px ${COLORS.amber}40`; }}
-    >
-      {loading ? "Saving..." : text}
-    </button>
-  );
 
   return (
     <div style={{ display: "flex", gap: "30px", minHeight: "700px", color: "white", fontFamily: "'Inter', sans-serif" }}>
@@ -304,21 +281,7 @@ export default function AdminSettings({ user, token, setUser }) {
                 <InputField label="Email Address" type="email" value={profile.email} onChange={e => setProfile({...profile, email: e.target.value})} required />
                 <InputField label="Phone Number" value={profile.phone} onChange={e => setProfile({...profile, phone: e.target.value})} />
                 
-                <SaveButton text="Save Profile" />
-              </div>
-            </form>
-          )}
-
-          {/* Security Settings */}
-          {activeTab === "security" && (
-            <form onSubmit={handlePasswordSave} style={{ animation: "fadeIn 0.3s ease-in-out" }}>
-              <h3 style={{ margin: "0 0 30px", fontSize: "24px", fontWeight: "600" }}>🔐 Change Password</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                <InputField label="Current Password" type="password" value={password.currentPassword} onChange={e => setPassword({...password, currentPassword: e.target.value})} required />
-                <InputField label="New Password" type="password" value={password.newPassword} onChange={e => setPassword({...password, newPassword: e.target.value})} required />
-                <InputField label="Confirm New Password" type="password" value={password.confirmPassword} onChange={e => setPassword({...password, confirmPassword: e.target.value})} required />
-                
-                <SaveButton text="Update Password" />
+                <SaveButton text="Save Profile" loading={loading} />
               </div>
             </form>
           )}
@@ -343,79 +306,17 @@ export default function AdminSettings({ user, token, setUser }) {
                   <InputField label="Instagram URL" value={settings.socialInstagram || ""} onChange={e => setSettings({...settings, socialInstagram: e.target.value})} />
                 </div>
 
-                <SaveButton text="Save System Settings" />
+                <div style={{ padding: "20px", background: "rgba(0,0,0,0.15)", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.05)", display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <h4 style={{ margin: "0", fontSize: "16px", color: COLORS.amberLight }}>Notification Preferences</h4>
+                  <ToggleSwitch label="Enable email notifications" checked={settings.emailNotifications} onChange={e => setSettings({...settings, emailNotifications: e.target.checked})} />
+                  <ToggleSwitch label="Enable admin alerts" checked={settings.adminAlerts} onChange={e => setSettings({...settings, adminAlerts: e.target.checked})} />
+                </div>
+
+                <SaveButton text="Save System Settings" loading={loading} />
               </div>
             </form>
           )}
 
-          {/* Platform Policies (Combined Rules, Notifications, User Control) */}
-          {activeTab === "policies" && (
-            <form onSubmit={handleSettingsSave} style={{ animation: "fadeIn 0.3s ease-in-out" }}>
-              <h3 style={{ margin: "0 0 30px", fontSize: "24px", fontWeight: "600" }}>🛡️ Platform Policies</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                
-                <div style={{ padding: "20px", background: "rgba(0,0,0,0.15)", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.05)", display: "flex", flexDirection: "column", gap: "16px" }}>
-                  <h4 style={{ margin: "0", fontSize: "16px", color: COLORS.amberLight }}>Donation Rules</h4>
-                  <div style={{ display: "flex", gap: "16px" }}>
-                    <div style={{ flex: 1 }}>
-                      <InputField label="Cooked Food Expiry (Hours)" type="number" value={settings.cookedFoodExpiryHours} onChange={e => setSettings({...settings, cookedFoodExpiryHours: Number(e.target.value)})} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <InputField label="Packed Food Expiry (Days)" type="number" value={settings.packedFoodExpiryDays} onChange={e => setSettings({...settings, packedFoodExpiryDays: Number(e.target.value)})} />
-                    </div>
-                  </div>
-                  <ToggleSwitch label="Auto-remove expired food from platform" checked={settings.autoRemoveExpired} onChange={e => setSettings({...settings, autoRemoveExpired: e.target.checked})} />
-                </div>
-
-                <div style={{ padding: "20px", background: "rgba(0,0,0,0.15)", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.05)", display: "flex", flexDirection: "column", gap: "16px" }}>
-                  <h4 style={{ margin: "0", fontSize: "16px", color: COLORS.amberLight }}>Notifications & Alerts</h4>
-                  <ToggleSwitch label="Enable System Email Notifications" checked={settings.emailNotifications} onChange={e => setSettings({...settings, emailNotifications: e.target.checked})} />
-                  <ToggleSwitch label="Enable Admin Dashboard Alerts" checked={settings.adminAlerts} onChange={e => setSettings({...settings, adminAlerts: e.target.checked})} />
-                </div>
-
-                <div style={{ padding: "20px", background: "rgba(0,0,0,0.15)", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.05)", display: "flex", flexDirection: "column", gap: "16px" }}>
-                  <h4 style={{ margin: "0", fontSize: "16px", color: COLORS.amberLight }}>User Control</h4>
-                  <ToggleSwitch label="Auto-block suspected spam users" checked={settings.autoBlockSpam} onChange={e => setSettings({...settings, autoBlockSpam: e.target.checked})} />
-                  <ToggleSwitch label="Require Admin Verification for new NGOs" checked={settings.ngoVerificationRequired} onChange={e => setSettings({...settings, ngoVerificationRequired: e.target.checked})} />
-                </div>
-
-                <SaveButton text="Save Policies" />
-              </div>
-            </form>
-          )}
-
-          {/* Advanced Settings */}
-          {activeTab === "advanced" && (
-            <form onSubmit={handleSettingsSave} style={{ animation: "fadeIn 0.3s ease-in-out" }}>
-              <h3 style={{ margin: "0 0 30px", fontSize: "24px", fontWeight: "600" }}>⚙️ Advanced Settings</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                
-                <div style={{ padding: "20px", background: "rgba(0,0,0,0.15)", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.05)", display: "flex", flexDirection: "column", gap: "16px" }}>
-                  <h4 style={{ margin: "0", fontSize: "16px", color: COLORS.amberLight }}>System Operations</h4>
-                  <ToggleSwitch label="Maintenance Mode (Disable user access)" checked={settings.maintenanceMode} onChange={e => setSettings({...settings, maintenanceMode: e.target.checked})} />
-                </div>
-
-                <div style={{ padding: "20px", background: "rgba(0,0,0,0.15)", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.05)", display: "flex", flexDirection: "column", gap: "16px" }}>
-                  <h4 style={{ margin: "0", fontSize: "16px", color: COLORS.amberLight }}>API Keys & Integrations</h4>
-                  <InputField label="Google Maps API Key" type="password" value={settings.googleMapsApiKey || ""} onChange={e => setSettings({...settings, googleMapsApiKey: e.target.value})} />
-                </div>
-
-                <div style={{ padding: "20px", background: "rgba(0,0,0,0.15)", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.05)", display: "flex", flexDirection: "column", gap: "16px" }}>
-                  <h4 style={{ margin: "0", fontSize: "16px", color: COLORS.amberLight }}>Security Token Settings</h4>
-                  <div style={{ display: "flex", gap: "16px" }}>
-                    <div style={{ flex: 1 }}>
-                      <InputField label="JWT Expiry Time (Hours)" type="number" value={settings.jwtExpiryHours} onChange={e => setSettings({...settings, jwtExpiryHours: Number(e.target.value)})} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <InputField label="Session Timeout (Mins)" type="number" value={settings.sessionTimeoutMins} onChange={e => setSettings({...settings, sessionTimeoutMins: Number(e.target.value)})} />
-                    </div>
-                  </div>
-                </div>
-
-                <SaveButton text="Save Advanced Config" />
-              </div>
-            </form>
-          )}
 
         </div>
       </div>

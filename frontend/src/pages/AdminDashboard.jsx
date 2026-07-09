@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import { COLORS } from "../theme";
 import Sidebar from "../components/Sidebar";
 import StatCard from "../components/StatCard";
@@ -11,6 +9,8 @@ import { getAllMoneyDonations, deleteMoneyDonation, METHOD_LABELS } from "../api
 import { verifyAuth } from "../api/auth";
 import api from "../api/axios";
 import toast from "react-hot-toast";
+import { createPortal } from "react-dom";
+import { io } from "socket.io-client";
 
 export default function AdminDashboard({ theme = "dark" }) {
   const navigate = useNavigate();
@@ -176,8 +176,43 @@ export default function AdminDashboard({ theme = "dark" }) {
       loadData();
     };
 
+     
     verifyAndLoad();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    const refreshTimer = setInterval(() => {
+      fetchNotifications();
+    }, 10000);
+
+    return () => clearInterval(refreshTimer);
+  }, [user?._id]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    const socket = io(`http://${window.location.hostname}:5000`);
+    socket.emit("join_user_room", user._id);
+
+    socket.on("new_notification", (notif) => {
+      setNotifications((prev) => [notif, ...prev]);
+      toast(notif.message, {
+        icon: notif.type === "new_message" ? "💬" : "🔔",
+        style: { borderRadius: "10px", background: "#333", color: "#fff" },
+        duration: 4000,
+      });
+    });
+
+    socket.on("admin_deleted_item", () => {
+      fetchNotifications();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user?._id]);
 
   useEffect(() => {
     fetchUsers(currentPage);
@@ -272,7 +307,7 @@ export default function AdminDashboard({ theme = "dark" }) {
   };
 
   // 📋 Handle Food Request Status
-  const handleRequestStatus = async (requestId, status) => {
+  /* const handleRequestStatus = async (requestId, status) => {
     setActionLoading(requestId);
     try {
       await api.put(`/admin/requests/${requestId}/status`, { status });
@@ -281,7 +316,7 @@ export default function AdminDashboard({ theme = "dark" }) {
       console.error("Error updating request:", err);
     }
     setActionLoading(null);
-  };
+  }; */
 
   // 📦 Handle Food Donation Admin Status
   const handleDonationAdminStatus = async (donationId, adminStatus) => {
@@ -366,12 +401,12 @@ export default function AdminDashboard({ theme = "dark" }) {
     setActionLoading(null);
   };
 
-  const mockUsers = [
+  /* const mockUsers = [
     { name: "Green Leaf Restaurant", role: "Donor", donations: 42, status: "Active", joined: "Jan 2026" },
     { name: "Mary Fernando", role: "Recipient", donations: 0, requests: 8, status: "Active", joined: "Feb 2026" },
     { name: "City Market Puttalam", role: "Donor", donations: 28, status: "Active", joined: "Mar 2026" },
     { name: "Ahmed Rasheed", role: "Recipient", requests: 12, status: "Pending", joined: "Apr 2026" },
-  ];
+  ]; */
 
   const roleColors = { donor: COLORS.amber, ngo: COLORS.mint, admin: "#7b68ee" };
   const statusColors = { active: "#4CAF50", pending: COLORS.amber, suspended: "#e74c3c" };
@@ -409,14 +444,24 @@ export default function AdminDashboard({ theme = "dark" }) {
           {notifications.filter(n => !n.read && (n.recipientId?._id === user?._id || n.recipientId === user?._id)).length > 0 && (
             <div style={{
               position: "absolute",
-              top: 10,
-              right: 12,
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
+              top: -5,
+              right: -5,
+              minWidth: 18,
+              height: 18,
+              borderRadius: 9,
               background: COLORS.amber,
+              color: "#0f172a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 10,
+              fontWeight: 800,
+              padding: "0 4px",
+              boxShadow: "0 0 0 2px rgba(15,23,42,0.45)",
               animation: "pulseDot 2s infinite"
-            }} />
+            }}>
+              {notifications.filter(n => !n.read && (n.recipientId?._id === user?._id || n.recipientId === user?._id)).length}
+            </div>
           )}
         </div>
 
@@ -437,7 +482,6 @@ export default function AdminDashboard({ theme = "dark" }) {
                   <StatCard icon="🍱" label="Total Donations" value={stats.totalDonations || 0} color={COLORS.amberLight} sub="Meals" />
                   <StatCard icon="💰" label="Total Funds" value={`LKR ${stats.totalFundsDonated || 0}`} color={COLORS.amber} sub="Donated" />
                   <StatCard icon="👥" label="Total Users" value={stats.totalUsers || 0} color={COLORS.mint} sub="Registered" />
-                  <StatCard icon="♻️" label="Food Saved" value={`${stats.totalFoodSaved || 0} kg`} color="#7ec8a0" sub="Kilograms" />
                   <StatCard icon="📍" label="Total Requests" value={stats.totalRequests || 0} color="#7b68ee" sub="Processed" />
                 </div>
 
@@ -515,14 +559,15 @@ export default function AdminDashboard({ theme = "dark" }) {
               <div style={{ textAlign: "center", padding: "40px", color: "rgba(255,255,255,0.7)" }}>Loading users...</div>
             ) : (
               <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.5fr 1fr 1fr 1.5fr", gap: 0, padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>
-                  <span>User</span><span>Role</span><span>Email</span><span>Status</span><span>Joined</span><span>Actions</span>
+                <div style={{ display: "grid", gridTemplateColumns: "18% 12% 18% 12% 12% 12% 16%", gap: 0, padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, textAlign: "left" }}>
+                  <span>User</span><span>Role</span><span>Email</span><span>Email Status</span><span>Status</span><span>Joined</span><span>Actions</span>
                 </div>
                 {users.length > 0 ? users.map((u, i) => (
-                  <div key={u._id || i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.5fr 1fr 1fr 1.5fr", gap: 0, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center" }}>
+                  <div key={u._id || i} style={{ display: "grid", gridTemplateColumns: "18% 12% 18% 12% 12% 12% 16%", gap: 0, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center", textAlign: "left" }}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: "white", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{u.name}</span>
                     <span style={{ fontSize: 12, color: roleColors[u.role?.toLowerCase()] || "white", fontWeight: 600, textTransform: "capitalize" }}>{u.role}</span>
                     <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", marginRight: 10 }}>{u.email}</span>
+                    <span style={{ fontSize: 12, color: u.isEmailVerified ? COLORS.mint : "#e74c3c", fontWeight: 600 }}>{u.isEmailVerified ? "✅ Verified" : "❌ Unverified"}</span>
                     <span style={{ fontSize: 12, color: statusColors[u.status?.toLowerCase()] || "white", fontWeight: 600, textTransform: "capitalize" }}>● {u.status || "active"}</span>
                     <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{new Date(u.createdAt).toLocaleDateString()}</span>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -652,19 +697,23 @@ export default function AdminDashboard({ theme = "dark" }) {
               <div style={{ textAlign: "center", padding: "40px", color: "rgba(255,255,255,0.7)" }}>Loading fund requests...</div>
             ) : fundRequests.length > 0 ? (
               <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 2fr 1fr 1fr 1fr 0.5fr 1.5fr", gap: 0, padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "16% 12% 12% 10% 24% 6% 20%", gap: 0, padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, textAlign: "left" }}>
                   <span>NGO Name</span><span>Purpose</span><span>Amount</span><span>Status</span><span>Documents</span><span>Details</span><span>Actions</span>
                 </div>
                 {fundRequests.map((r, i) => (
-                  <div key={r._id || i} style={{ display: "grid", gridTemplateColumns: "1.5fr 2fr 1fr 1fr 1fr 0.5fr 1.5fr", gap: 0, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center" }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "white" }}>{r.ngoId?.name || "Unknown"}</span>
+                  <div key={r._id || i} style={{ display: "grid", gridTemplateColumns: "16% 12% 12% 10% 24% 6% 20%", gap: 0, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center", textAlign: "left" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "white", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                        {r.ngoId?.name || "Unknown"}
+                      </span>
+                    </div>
                     <span style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", paddingRight: 10 }}>{r.purpose}</span>
                     <span style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>LKR {r.amountNeeded}</span>
                     <span style={{ fontSize: 12, color: r.status === "approved" ? COLORS.mint : r.status === "rejected" ? "#e74c3c" : COLORS.amber, fontWeight: 600, textTransform: "capitalize" }}>● {r.status}</span>
                     <div style={{ fontSize: 14, display: "flex", flexDirection: "row", flexWrap: "nowrap", overflowX: "auto", gap: 8, fontWeight: 500, paddingBottom: 4 }}>
-                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(r.documents?.needStatement?.startsWith('http') ? r.documents.needStatement : `http://localhost:5000/uploads/${r.documents?.needStatement?.split(/[\\/]/).pop()}`); }} style={{color: COLORS.mint, textDecoration: "none", background: "rgba(46, 204, 113, 0.1)", padding: "6px 12px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap"}}>📄 Need Statement</a>
-                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(r.documents?.registrationCertificate?.startsWith('http') ? r.documents.registrationCertificate : `http://localhost:5000/uploads/${r.documents?.registrationCertificate?.split(/[\\/]/).pop()}`); }} style={{color: COLORS.mint, textDecoration: "none", background: "rgba(46, 204, 113, 0.1)", padding: "6px 12px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap"}}>📄 Registration</a>
-                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(r.documents?.bankDetails?.startsWith('http') ? r.documents.bankDetails : `http://localhost:5000/uploads/${r.documents?.bankDetails?.split(/[\\/]/).pop()}`); }} style={{color: COLORS.mint, textDecoration: "none", background: "rgba(46, 204, 113, 0.1)", padding: "6px 12px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap"}}>📄 Bank Details</a>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(r.documents?.needStatement?.startsWith('http') ? r.documents.needStatement : `http://${window.location.hostname}:5000/uploads/${r.documents?.needStatement?.split(/[\\/]/).pop()}`); }} style={{color: COLORS.mint, textDecoration: "none", background: "rgba(46, 204, 113, 0.1)", padding: "6px 12px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap"}}>📄 Need Statement</a>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(r.documents?.registrationCertificate?.startsWith('http') ? r.documents.registrationCertificate : `http://${window.location.hostname}:5000/uploads/${r.documents?.registrationCertificate?.split(/[\\/]/).pop()}`); }} style={{color: COLORS.mint, textDecoration: "none", background: "rgba(46, 204, 113, 0.1)", padding: "6px 12px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap"}}>📄 Registration</a>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(r.documents?.bankDetails?.startsWith('http') ? r.documents.bankDetails : `http://${window.location.hostname}:5000/uploads/${r.documents?.bankDetails?.split(/[\\/]/).pop()}`); }} style={{color: COLORS.mint, textDecoration: "none", background: "rgba(46, 204, 113, 0.1)", padding: "6px 12px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap"}}>📄 Bank Details</a>
                     </div>
                     <div>
                       <button 
@@ -714,13 +763,17 @@ export default function AdminDashboard({ theme = "dark" }) {
               <div style={{ textAlign: "center", padding: "40px", color: "rgba(255,255,255,0.7)" }}>Loading food donations...</div>
             ) : donations.length > 0 ? (
               <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 0.5fr 1.5fr", gap: 0, padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "20% 16% 14% 14% 8% 28%", gap: 0, padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, textAlign: "left" }}>
                   <span>Food Item</span><span>Donor</span><span>Status</span><span>Posted Date</span><span>Details</span><span>Action</span>
                 </div>
                 {donations.map((d, i) => (
-                  <div key={d._id || i} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 0.5fr 1.5fr", gap: 0, padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center" }}>
+                  <div key={d._id || i} style={{ display: "grid", gridTemplateColumns: "20% 16% 14% 14% 8% 28%", gap: 0, padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center", textAlign: "left" }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: "white", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{d.foodName}</span>
-                    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", paddingRight: 8 }}>{d.donor?.name || "Unknown"}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, paddingRight: 8, overflow: "hidden" }}>
+                      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", fontWeight: 500 }}>
+                        {d.donor?.name || "Unknown"}
+                      </span>
+                    </div>
                     <span style={{ fontSize: 12, color: d.adminStatus === "approved" ? COLORS.mint : d.adminStatus === "rejected" ? "#e74c3c" : COLORS.amber, fontWeight: 600, textTransform: "capitalize" }}>{d.adminStatus || "pending"}</span>
                     <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{new Date(d.createdAt).toLocaleDateString()}</span>
                     <div>
@@ -939,11 +992,11 @@ export default function AdminDashboard({ theme = "dark" }) {
                   <h3 style={{ color: COLORS.mint, marginBottom: 16 }}>🍱 Food Donations</h3>
                   {donations.length > 0 ? (
                     <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, overflow: "hidden", marginBottom: 32 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr 1.5fr 1fr", gap: 0, padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "20% 15% 10% 10% 15% 15% 15%", gap: 0, padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, textAlign: "left" }}>
                         <span>Food Item</span><span>Donor</span><span>Qty</span><span>Status</span><span>Posted</span><span>Admin Status</span><span>View</span>
                       </div>
                       {donations.map((d, i) => (
-                        <div key={d._id || i} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr 1.5fr 1fr", gap: 0, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center" }}>
+                        <div key={d._id || i} style={{ display: "grid", gridTemplateColumns: "20% 15% 10% 10% 15% 15% 15%", gap: 0, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center", textAlign: "left" }}>
                           <span style={{ fontSize: 14, fontWeight: 600, color: "white", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{d.foodName}</span>
                           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", paddingRight: 10 }}>{d.donor?.name || "Unknown"}</span>
                           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>
@@ -981,11 +1034,11 @@ export default function AdminDashboard({ theme = "dark" }) {
                   <h3 style={{ color: COLORS.amber, marginBottom: 16 }}>💰 Fund Donations</h3>
                   {moneyDonations.length > 0 ? (
                     <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, overflow: "hidden" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 2fr 1fr 1fr 1fr 1fr 1fr", gap: 0, padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "18% 24% 12% 12% 12% 12% 10%", gap: 0, padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, textAlign: "left" }}>
                         <span>Donor</span><span>NGO Requested</span><span>Amount</span><span>Method</span><span>Status</span><span>Date</span><span>View</span>
                       </div>
                       {moneyDonations.map((md, i) => (
-                        <div key={md._id || i} style={{ display: "grid", gridTemplateColumns: "1.5fr 2fr 1fr 1fr 1fr 1fr 1fr", gap: 0, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center" }}>
+                        <div key={md._id || i} style={{ display: "grid", gridTemplateColumns: "18% 24% 12% 12% 12% 12% 10%", gap: 0, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center", textAlign: "left" }}>
                           <span 
                             style={{ fontSize: 14, fontWeight: 600, color: COLORS.amber, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", cursor: "pointer" }}
                             onClick={() => setSelectedDonor(md.donorId)}
@@ -1023,7 +1076,7 @@ export default function AdminDashboard({ theme = "dark" }) {
                 </>
               )
             ) : (
-              <AdminSettings user={user} token={token} setUser={setUser} />
+              <AdminSettings user={user} token={localStorage.getItem("token")} setUser={setUser} />
             )}
           </div>
         )}
@@ -1232,18 +1285,18 @@ export default function AdminDashboard({ theme = "dark" }) {
             {/* Personal Information */}
             <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
               <h4 style={{ margin: "0 0 12px", fontSize: 14, color: COLORS.amber, textTransform: "uppercase", letterSpacing: "1px" }}>Personal Information</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Name:</span> <span style={{ color: "white", fontWeight: 600 }}>{selectedDonor.name || "Unknown"}</span></div>
-                <div><span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Email:</span> <span style={{ color: "white" }}>{selectedDonor.email || "N/A"}</span></div>
-                <div><span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Phone:</span> <span style={{ color: "white" }}>{selectedDonor.phone || "N/A"}</span></div>
-                <div><span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Address:</span> <span style={{ color: "white" }}>{selectedDonor.organization || "N/A"}</span></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+                <div style={{ background: "rgba(255,255,255,0.03)", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}><div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Name</div><div style={{ color: "white", fontWeight: 600 }}>{selectedDonor.name || "Unknown"}</div></div>
+                <div style={{ background: "rgba(255,255,255,0.03)", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}><div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Email</div><div style={{ color: "white" }}>{selectedDonor.email || "N/A"}</div></div>
+                <div style={{ background: "rgba(255,255,255,0.03)", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}><div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Phone</div><div style={{ color: "white" }}>{selectedDonor.phone || "N/A"}</div></div>
+                <div style={{ background: "rgba(255,255,255,0.03)", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}><div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Organization</div><div style={{ color: "white" }}>{selectedDonor.organization || "N/A"}</div></div>
               </div>
             </div>
 
             {/* Donation Statistics */}
             <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
               <h4 style={{ margin: "0 0 12px", fontSize: 14, color: COLORS.mint, textTransform: "uppercase", letterSpacing: "1px" }}>Donation Statistics</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
                 <div style={{ textAlign: "center", padding: 12, background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
                   <div style={{ fontSize: 24, fontWeight: 700, color: COLORS.amber }}>{moneyDonations.filter(md => md.donorId?._id === selectedDonor._id).length}</div>
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>Total Donations</div>
@@ -1278,13 +1331,12 @@ export default function AdminDashboard({ theme = "dark" }) {
                   ))}
                 </div>
               ) : (
-                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>No donation history found.</div>
+                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>No supported NGOs found.</div>
               )}
             </div>
 
-            {/* Supported NGOs */}
-            <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 20 }}>
-              <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: "1px" }}>Supported NGOs</h4>
+            <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
+              <h4 style={{ margin: "0 0 12px", fontSize: 14, color: COLORS.amberLight, textTransform: "uppercase", letterSpacing: "1px" }}>Supported NGOs</h4>
               {moneyDonations.filter(md => md.donorId?._id === selectedDonor._id).length > 0 ? (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {Array.from(new Set(moneyDonations.filter(md => md.donorId?._id === selectedDonor._id).map(md => md.moneyRequestId?.ngoId?.name))).filter(Boolean).map((ngoName, i) => (
@@ -1292,7 +1344,7 @@ export default function AdminDashboard({ theme = "dark" }) {
                   ))}
                 </div>
               ) : (
-                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>No supported NGOs found.</div>
+                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>No supported NGOs yet.</div>
               )}
             </div>
           </div>

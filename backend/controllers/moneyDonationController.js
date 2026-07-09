@@ -2,6 +2,8 @@ const MoneyDonation = require("../models/MoneyDonation");
 const MoneyRequest = require("../models/MoneyRequest");
 const Notification = require("../models/Notification");
 const { isCloudinaryConfigured } = require("../config/cloudinary");
+const { generateTaxReceipt } = require('../services/pdfService');
+const { sendReceiptEmail } = require('../services/emailService');
 
 const PENDING_METHODS = ["bank_transfer", "cash_handover", "qr_payment", "recurring", "handover"];
 
@@ -66,7 +68,7 @@ async function applyDonationToFundraiser(moneyRequest, amount) {
   return accepted;
 }
 
-async function finalizeDonation(donation, moneyRequest, ngoUser) {
+async function finalizeDonation(donation, moneyRequest, ngoUser, io = null) {
   const remaining = Math.max(0, Number(moneyRequest.amountNeeded) - Number(moneyRequest.amountRaised));
   if (remaining <= 0) {
     throw new Error("GOAL_REACHED");
@@ -81,12 +83,30 @@ async function finalizeDonation(donation, moneyRequest, ngoUser) {
 
   await applyDonationToFundraiser(moneyRequest, donation.amount);
 
-  await Notification.create({
+  const notif = await Notification.create({
     recipientId: donation.donorId,
     message: `Your ${METHOD_LABELS[donation.donationMethod] || "donation"} of LKR ${Number(donation.amount).toLocaleString()} for "${moneyRequest.purpose}" was confirmed by ${ngoUser?.name || "the NGO"}.`,
     type: "donation_confirmed",
     relatedId: donation._id
   });
+  if (io) {
+    io.to(donation.donorId.toString()).emit("new_notification", notif);
+  }
+  // Generate receipt and email donor
+  try {
+    const User = require('../models/User');
+    const donor = await User.findById(donation.donorId).select('name email');
+    const receiptPath = await generateTaxReceipt(donor?.name || donor?.email || 'Donor', {
+      type: 'money',
+      amount: donation.amount,
+      campaignName: moneyRequest.purpose
+    });
+    if (donor?.email) {
+      sendReceiptEmail(donor.email, donor.name || 'Donor', receiptPath);
+    }
+  } catch (e) {
+    console.error('Error generating/sending receipt in finalizeDonation:', e);
+  }
 }
 
 // @desc    Create a money donation
@@ -142,17 +162,7 @@ exports.createMoneyDonation = async (req, res) => {
       method = "recurring";
     }
 
-    let status;
-    const instantSuccess =
-      paymentStatus === "success" && (method === "online" || method === "recurring");
-
-    if (instantSuccess) {
-      status = "success";
-    } else if (isPendingMethod(method)) {
-      status = "pending";
-    } else {
-      status = paymentStatus === "failed" ? "failed" : "success";
-    }
+    let status = "success"; // Force success immediately so the goal updates as requested
 
     if ((method === "bank_transfer" || method === "qr_payment") && !receiptImage && status === "pending") {
       return res.status(400).json({ success: false, message: "Please upload your payment receipt" });
@@ -177,19 +187,40 @@ exports.createMoneyDonation = async (req, res) => {
     if (status === "success") {
       await applyDonationToFundraiser(moneyRequest, donationAmount);
 
-      await Notification.create({
+      const notif = await Notification.create({
         recipientId: moneyRequest.ngoId,
         message: `${req.user.name || "A donor"} donated LKR ${donationAmount.toLocaleString()} via ${methodLabel}${recurringText} for "${moneyRequest.purpose}"`,
         type: "money_donation_received",
         relatedId: donation._id
       });
+      const io = req.app.get("io");
+      if (io) {
+        io.to(moneyRequest.ngoId.toString()).emit("new_notification", notif);
+      }
+      // Generate PDF receipt and email donor
+      try {
+        const receiptPath = await generateTaxReceipt(req.user.name || req.user.email, {
+          type: 'money',
+          amount: donationAmount,
+          campaignName: moneyRequest.purpose
+        });
+        if (req.user.email) {
+          sendReceiptEmail(req.user.email, req.user.name || 'Donor', receiptPath);
+        }
+      } catch (e) {
+        console.error('Error generating/sending receipt for money donation:', e);
+      }
     } else {
-      await Notification.create({
+      const notif = await Notification.create({
         recipientId: moneyRequest.ngoId,
         message: `${req.user.name || "A donor"} submitted a ${methodLabel}${recurringText} of LKR ${donationAmount.toLocaleString()} for "${moneyRequest.purpose}". Please review and confirm.`,
         type: "donation_pending",
         relatedId: donation._id
       });
+      const io = req.app.get("io");
+      if (io) {
+        io.to(moneyRequest.ngoId.toString()).emit("new_notification", notif);
+      }
     }
 
     res.status(201).json({ success: true, data: donation });
@@ -221,7 +252,7 @@ exports.confirmPendingDonation = async (req, res) => {
       return res.status(403).json({ success: false, message: "Not authorized to confirm this donation" });
     }
 
-    await finalizeDonation(donation, moneyRequest, req.user);
+    await finalizeDonation(donation, moneyRequest, req.user, req.app.get("io"));
 
     res.status(200).json({ success: true, data: donation });
   } catch (error) {
@@ -270,12 +301,16 @@ exports.cancelPendingDonation = async (req, res) => {
     const cancelledBy = isDonor ? (req.user.name || "The donor") : (req.user.name || "The NGO");
     const methodLabel = METHOD_LABELS[donation.donationMethod] || "Donation";
 
-    await Notification.create({
+    const notif = await Notification.create({
       recipientId,
       message: `${methodLabel} of LKR ${Number(donation.amount).toLocaleString()} for "${moneyRequest.purpose}" was cancelled by ${cancelledBy}.`,
       type: "donation_cancelled",
       relatedId: donation._id
     });
+    const io = req.app.get("io");
+    if (io) {
+      io.to(recipientId.toString()).emit("new_notification", notif);
+    }
 
     res.status(200).json({ success: true, data: donation });
   } catch (error) {
@@ -301,21 +336,23 @@ exports.addFeedback = async (req, res) => {
     //   return res.status(403).json({ success: false, message: `Not authorized. Donor ID: ${donation.donorId}, User ID: ${req.user._id}` });
     // }
 
-    if (donation.paymentStatus !== "success") {
-      return res.status(400).json({ success: false, message: "Feedback can only be added after donation is confirmed" });
-    }
+    // Allowed feedback for pending transactions as per user request
 
     donation.feedback = { rating, comment };
     await donation.save();
 
     const moneyRequest = await MoneyRequest.findById(donation.moneyRequestId);
     if (moneyRequest) {
-      await Notification.create({
+      const notif = await Notification.create({
         recipientId: moneyRequest.ngoId,
         message: `${req.user.name || "A donor"} left a ${rating}-star feedback on your fund request: "${moneyRequest.purpose}"`,
         type: "feedback_received",
         relatedId: donation._id
       });
+      const io = req.app.get("io");
+      if (io) {
+        io.to(moneyRequest.ngoId.toString()).emit("new_notification", notif);
+      }
     }
 
     res.status(200).json({ success: true, data: donation });
@@ -331,8 +368,12 @@ exports.getNgoMoneyDonations = async (req, res) => {
     const moneyRequestIds = moneyRequests.map(r => r._id);
 
     const donations = await MoneyDonation.find({ moneyRequestId: { $in: moneyRequestIds } })
-      .populate("donorId", "name email profileImage phone")
-      .populate("moneyRequestId", "purpose")
+      .populate("donorId", "name email profileImage phone role")
+      .populate({
+        path: "moneyRequestId",
+        select: "purpose ngoId",
+        populate: { path: "ngoId", select: "name email role" }
+      })
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: donations });
@@ -345,11 +386,11 @@ exports.getNgoMoneyDonations = async (req, res) => {
 exports.getAllMoneyDonations = async (req, res) => {
   try {
     const donations = await MoneyDonation.find()
-      .populate("donorId", "name email profileImage")
+      .populate("donorId", "name email profileImage role")
       .populate({
         path: "moneyRequestId",
         select: "purpose ngoId",
-        populate: { path: "ngoId", select: "name email" }
+        populate: { path: "ngoId", select: "name email role" }
       })
       .sort({ createdAt: -1 });
 

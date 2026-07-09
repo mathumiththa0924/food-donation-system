@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
+import 'leaflet-routing-machine';
 import toast from "react-hot-toast";
+
+import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
+import iconUrl from "leaflet/dist/images/marker-icon.png";
+import shadowUrl from "leaflet/dist/images/marker-shadow.png";
 
 // Fix default Leaflet marker icon issue in React
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: require("leaflet/dist/images/marker-icon-2x.png"),
-  iconUrl: require("leaflet/dist/images/marker-icon.png"),
-  shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
+  iconRetinaUrl,
+  iconUrl,
+  shadowUrl,
 });
 
 // A component to center the map when location changes
@@ -31,12 +37,42 @@ function LocationClick({ onLocationSelect }) {
   return null;
 }
 
+// Routing control using Leaflet Routing Machine
+function RoutingControl({ from, to }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!from || !to || !map) return;
+
+    try {
+      const control = L.Routing.control({
+        waypoints: [L.latLng(from[0], from[1]), L.latLng(to[0], to[1])],
+        router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+        fitSelectedRoute: true,
+        showAlternatives: false,
+        addWaypoints: false,
+        lineOptions: { styles: [{ color: '#2e9b4e', weight: 6, opacity: 0.9 }] },
+        createMarker: function(i, wp) { return L.marker(wp.latLng); }
+      }).addTo(map);
+
+      return () => {
+        try { map.removeControl(control); } catch { /* ignore */ }
+      };
+    } catch (e) {
+      console.error('Routing control error:', e);
+    }
+  }, [map, from, to]);
+
+  return null;
+}
+
 export default function MapComponent({ 
   location, 
   onChange, 
   readOnly = false, 
   height = "300px",
   markers = [] // For NgoDashboard to pass multiple markers
+  , routeFrom, routeTo
 }) {
   const defaultCenter = [6.9271, 79.8612]; // Colombo, Sri Lanka
   
@@ -61,6 +97,7 @@ export default function MapComponent({
       const data = await res.json();
       setSearchResults(data);
     } catch (err) {
+      console.error(err);
       toast.error("Failed to search location");
     } finally {
       setSearching(false);
@@ -82,6 +119,7 @@ export default function MapComponent({
         onChange({ address, lat, lng });
       }
     } catch (err) {
+      console.error(err);
       toast.error("Could not fetch address for this location");
     }
   };
@@ -180,6 +218,11 @@ export default function MapComponent({
           />
           <ChangeView center={center} zoom={13} />
           {!readOnly && <LocationClick onLocationSelect={handleMapClick} />}
+
+          {/* Optional Routing Control: provide `routeFrom` and `routeTo` as [lat, lng] */}
+          {routeFrom && routeTo && (
+            <RoutingControl from={routeFrom} to={routeTo} />
+          )}
           
           {/* Single Marker Mode (For Donor Dashboard) */}
           {markerPos && !readOnly && (

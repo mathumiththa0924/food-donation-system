@@ -29,3 +29,8 @@ export const getMyStats = async () => {
   const response = await API.get("/donations/my/stats");
   return response.data;
 };
+
+export const downloadDonationReceipt = async (id) => {
+  const response = await API.get(`/donations/${id}/receipt`);
+  return response.data;
+};

@@ -1,4 +1,3 @@
-import React from "react";
 import { COLORS } from "../theme";
 
 export default function StatCard({ icon, label, value, color = COLORS.amber, sub }) {

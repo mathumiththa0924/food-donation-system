@@ -22,6 +22,11 @@ const requestSchema = new mongoose.Schema({
   estimatedPickupTime: {
     type: Date
   },
+  volunteerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   status: {
     type: String,
     enum: ['pending', 'accepted', 'rejected', 'picked_up', 'completed'],

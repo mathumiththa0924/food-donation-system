@@ -15,9 +15,33 @@ const userSchema = new mongoose.Schema({
     required: true,
     select: false,
   },
+  passwordResetCode: {
+    type: String,
+    default: null,
+  },
+  passwordResetExpires: {
+    type: Date,
+    default: null,
+  },
+  isEmailVerified: {
+    type: Boolean,
+    default: false,
+  },
+  twoFactorEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  emailVerificationCode: {
+    type: String,
+    default: null,
+  },
+  emailVerificationExpires: {
+    type: Date,
+    default: null,
+  },
   role: {
     type: String,
-    enum: ["donor", "ngo", "admin"],
+    enum: ["donor", "ngo", "admin", "volunteer"],
     default: "donor",
   },
   phone: {
@@ -57,6 +81,27 @@ const userSchema = new mongoose.Schema({
     officeAddress: { type: String, default: "" },
     whatsapp: { type: String, default: "" },
     qrCodeImage: { type: String, default: "" }
+  },
+  // Gamification Fields
+  points: {
+    type: Number,
+    default: 0,
+  },
+  totalDonations: {
+    type: Number,
+    default: 0,
+  },
+  badge: {
+    type: String,
+    enum: ["Newcomer", "Bronze", "Silver", "Gold", "Platinum"],
+    default: "Newcomer",
+  }
+  ,
+  // Optional office location for NGOs (saved fallback)
+  officeLocation: {
+    address: { type: String, default: '' },
+    lat: { type: Number },
+    lng: { type: Number }
   }
 }, { timestamps: true });
 

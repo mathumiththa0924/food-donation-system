@@ -1,10 +1,9 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import StatCard from "../components/StatCard";
 import RatingStars from "../components/RatingStars";
-import FeedbackList from "../components/FeedbackList";
 import LocationSelector from "../components/LocationSelector";
 import { createDonation, getMyDonations, getMyStats, deleteDonation } from "../api/donation";
 import { getNotifications, markNotificationsAsRead } from "../api/notification";
@@ -16,6 +15,7 @@ import DonationCheckoutModal from "../components/DonationCheckoutModal";
 import { COLORS } from "../theme";
 import toast from "react-hot-toast";
 import ChatWidget from "../components/ChatWidget";
+import Leaderboard from "../components/Leaderboard";
 import io from "socket.io-client";
 
 const FOOD_CATEGORIES = ["Cooked Food", "Raw Vegetables", "Grains & Rice", "Dairy", "Fruits", "Bakery", "Other"];
@@ -24,7 +24,6 @@ function DonorHome({ setActive, user, stats, recentDonations, ratingStats, theme
   const isLight = theme === "light";
   const textColor = isLight ? "#111" : "white";
   const mutedColor = isLight ? "rgba(15,23,42,0.65)" : "rgba(255,255,255,0.65)";
-  const cardBg = isLight ? "rgba(255,255,255,0.93)" : "rgba(255,255,255,0.06)";
   const cardBorder = isLight ? "1px solid rgba(148,163,184,0.25)" : "1px solid rgba(255,255,255,0.15)";
   const pageBg = isLight ? "rgba(248,250,252,0.75)" : "transparent";
   const panelText = isLight ? "#0f172a" : "white";
@@ -42,12 +41,12 @@ function DonorHome({ setActive, user, stats, recentDonations, ratingStats, theme
       <p style={{ color: mutedColor, fontSize: 16, marginBottom: 32 }}>Your generosity is making a difference every day.</p>
 
       <div style={{ display: "flex", gap: 16, marginBottom: 36, flexWrap: "wrap", justifyContent: "center", textAlign: "left" }}>
+        <StatCard icon="🏆" label="My Badge" value={user?.badge || "Newcomer"} sub={`${user?.points || 0} Points`} />
         <StatCard icon="🍱" label="Total Donated" value={stats.totalDonated || 0} sub="donations posted" />
         <StatCard icon="👥" label="People Helped" value={stats.peopleHelped || 0} sub="people fed" />
         <StatCard icon="✅" label="Completed" value={stats.completed || 0} sub="fully collected" />
       </div>
 
-      {/* Rating Display */}
       {ratingStats && ratingStats.donor && (
         <div style={{
           background: isLight ? "#fff" : `linear-gradient(135deg, ${COLORS.amber}15, ${COLORS.orange}15)`,
@@ -89,26 +88,31 @@ function DonorHome({ setActive, user, stats, recentDonations, ratingStats, theme
         </div>
       </div>
 
-      <div style={{ textAlign: "left" }}>
-        <h3 style={{ color: panelText, fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Recent Activity</h3>
-        {recentDonations.length === 0 ? <p style={{ color: isLight ? "rgba(15,23,42,0.55)" : "rgba(255,255,255,0.4)" }}>No recent donations.</p> : null}
-        {recentDonations.slice(0, 3).map(d => (
-          <div key={d._id} style={{
-            background: isLight ? "rgba(255,255,255,0.94)" : "rgba(255,255,255,0.06)", border: isLight ? "1px solid rgba(15,23,42,0.12)" : `1px solid rgba(255,255,255,0.15)`, borderRadius: 12,
-            padding: "16px 20px", marginBottom: 12, display: "flex", alignItems: "center", gap: 14,
-          }}>
-            <div style={{ fontSize: 24 }}>🍱</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ color: textColor, fontWeight: 600, fontSize: 16 }}>{d.foodName}</div>
-              <div style={{ color: mutedColor, fontSize: 13, marginTop: 4 }}>{d.quantity} {d.unit} • {typeof d.location === 'object' ? d.location?.address : d.location}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, textAlign: "left" }}>
+        <div>
+          <h3 style={{ color: panelText, fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Recent Activity</h3>
+          {recentDonations.length === 0 ? <p style={{ color: isLight ? "rgba(15,23,42,0.55)" : "rgba(255,255,255,0.4)" }}>No recent donations.</p> : null}
+          {recentDonations.slice(0, 3).map(d => (
+            <div key={d._id} style={{
+              background: isLight ? "rgba(255,255,255,0.94)" : "rgba(255,255,255,0.06)", border: isLight ? "1px solid rgba(15,23,42,0.12)" : `1px solid rgba(255,255,255,0.15)`, borderRadius: 12,
+              padding: "16px 20px", marginBottom: 12, display: "flex", alignItems: "center", gap: 14,
+            }}>
+              <div style={{ fontSize: 24 }}>🍱</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: textColor, fontWeight: 600, fontSize: 16 }}>{d.foodName}</div>
+                <div style={{ color: mutedColor, fontSize: 13, marginTop: 4 }}>{d.quantity} {d.unit} • {typeof d.location === 'object' ? d.location?.address : d.location}</div>
+              </div>
+              <span style={{
+                background: d.status === "pending" ? "rgba(45, 99, 71, 0.5)" : isLight ? "rgba(15,23,42,0.08)" : "rgba(255, 255, 255, 0.1)",
+                color: d.status === "pending" ? COLORS.mint : (isLight ? "#0f172a" : "white"),
+                fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
+              }}>{d.status}</span>
             </div>
-            <span style={{
-              background: d.status === "pending" ? "rgba(45, 99, 71, 0.5)" : isLight ? "rgba(15,23,42,0.08)" : "rgba(255, 255, 255, 0.1)",
-              color: d.status === "pending" ? COLORS.mint : (isLight ? "#0f172a" : "white"),
-              fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
-            }}>{d.status}</span>
-          </div>
-        ))}
+          ))}
+        </div>
+        <div>
+           <Leaderboard limit={5} />
+        </div>
       </div>
     </div>
   );
@@ -128,7 +132,7 @@ function DonateForm({ setActive, reloadDonations, theme }) {
   const panelBorder = isLight ? "1px solid rgba(148,163,184,0.22)" : "1px solid rgba(255,255,255,0.15)";
   const [form, setForm] = useState({
     name: "", category: "", qty: "", unit: "kg", peopleServed: "",
-    pickup: "", expiry: "", description: "", foodType: "veg",
+    pickup: "", expiry: "", description: "", foodType: "veg", isEmergency: false
   });
   
   const [district, setDistrict] = useState("");
@@ -149,16 +153,13 @@ function DonateForm({ setActive, reloadDonations, theme }) {
   };
 
   const handleSubmit = async () => {
-    let hasError = false;
     const newErrors = { district: "", place: "" };
 
     if (!district) {
       newErrors.district = "Select District";
-      hasError = true;
     }
     if (!place) {
       newErrors.place = "Select Area";
-      hasError = true;
     }
     setFormErrors(newErrors);
 
@@ -187,6 +188,7 @@ function DonateForm({ setActive, reloadDonations, theme }) {
       formData.append("peopleServed", form.peopleServed);
       formData.append("location", `${place}, ${district}`);
       formData.append("expiryTime", form.expiry);
+      formData.append("isEmergency", form.isEmergency);
       if (form.pickup) formData.append("pickupTime", form.pickup);
       if (imageFile) formData.append("image", imageFile);
 
@@ -332,6 +334,15 @@ function DonateForm({ setActive, reloadDonations, theme }) {
           </div>
         </div>
         <div style={{ gridColumn: "1/-1" }}>{field("Description *", "description", "text", { textarea: true, placeholder: "Briefly describe the food, freshness, allergies..." })}</div>
+        <div style={{ gridColumn: "1/-1", marginTop: 12, padding: "12px 16px", background: "rgba(231,76,60,0.1)", border: "1px solid rgba(231,76,60,0.2)", borderRadius: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", color: textColor, fontWeight: 600, fontSize: 14 }}>
+            <input type="checkbox" checked={form.isEmergency} onChange={e => setForm({ ...form, isEmergency: e.target.checked })} style={{ width: 18, height: 18, accentColor: "#e74c3c" }} />
+            🚨 Mark as Emergency / Urgent Pickup
+          </label>
+          <div style={{ color: mutedColor, fontSize: 12, marginTop: 4, marginLeft: 28 }}>
+            Check this if the food is large in quantity or perishing very soon, to immediately alert all nearby NGOs and Volunteers.
+          </div>
+        </div>
       </div>
 
       <button disabled={loading} onClick={handleSubmit} style={{
@@ -425,16 +436,40 @@ function MyDonations({ donations, onDelete, theme }) {
                 padding: "2px 8px", borderRadius: 12, textAlign: "center"
               }}>Admin: {d.adminStatus || "pending"}</span>
             </div>
-            <button 
-              onClick={() => onDelete && onDelete(d._id)}
-              style={{ 
-                background: "rgba(231,76,60,0.1)", border: "1px solid rgba(231,76,60,0.3)", 
-                color: "#e74c3c", padding: "6px 10px", borderRadius: 8, fontSize: 12, cursor: "pointer",
-                fontWeight: 600, marginLeft: 8 
-              }}
-            >
-              Delete
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {d.status === "delivered" && (
+                <button 
+                  onClick={async () => {
+                    try {
+                      const { downloadDonationReceipt } = await import("../api/donation");
+                      const res = await downloadDonationReceipt(d._id);
+                      if (res.success && res.data.receiptUrl) {
+                        window.open(res.data.receiptUrl, "_blank");
+                      }
+                    } catch (err) {
+                      toast.error("Certificate not available yet.");
+                    }
+                  }}
+                  style={{ 
+                    background: "rgba(46,204,113,0.1)", border: "1px solid rgba(46,204,113,0.3)", 
+                    color: "#2ecc71", padding: "6px 10px", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                    fontWeight: 600
+                  }}
+                >
+                  📄 Certificate
+                </button>
+              )}
+              <button 
+                onClick={() => onDelete && onDelete(d._id)}
+                style={{ 
+                  background: "rgba(231,76,60,0.1)", border: "1px solid rgba(231,76,60,0.3)", 
+                  color: "#e74c3c", padding: "6px 10px", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                  fontWeight: 600
+                }}
+              >
+                Delete
+              </button>
+            </div>
           </div>
           <div style={{ borderTop: isLight ? "1px dashed rgba(15,23,42,0.1)" : "1px dashed rgba(255,255,255,0.1)", paddingTop: 16 }}>
             <DonationTimeline status={d.status} theme={theme} />
@@ -550,7 +585,7 @@ function RequestsPage({ requests, onRequestAction, theme, user }) {
               {activeChat?.requestId === r._id && (
                 <div style={{ marginTop: 4, marginBottom: 20, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                   <button onClick={() => setActiveChat(null)} style={{ background: "transparent", color: "#e74c3c", border: "none", cursor: "pointer", fontSize: 12, marginBottom: 8, fontWeight: 600 }}>✖ Close Chat</button>
-                  <ChatWidget requestId={r._id} currentUserId={user?._id} otherUserId={r.ngoId?._id} currentUserRole="donor" />
+                  <ChatWidget requestId={r._id} currentUserId={user?._id} currentUserRole="donor" />
                 </div>
               )}
             </React.Fragment>
@@ -562,7 +597,26 @@ function RequestsPage({ requests, onRequestAction, theme, user }) {
 }
 
 // ─── PAGE: DONOR PROFILE ────────────────────────────────────────────────────────
-function ProfilePage({ user, ratingStats, setUser, theme }) {
+
+const ProfileInputField = ({ label, icon, theme, ...props }) => {
+  const isLight = theme === "light";
+  const textColor = isLight ? "#111" : "white";
+  const mutedColor = isLight ? "rgba(15,23,42,0.65)" : "rgba(255,255,255,0.55)";
+  const inputBg = isLight ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.04)";
+  const inputBorder = isLight ? "1px solid rgba(15,23,42,0.12)" : "1px solid rgba(255,255,255,0.15)";
+  
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: "block", color: mutedColor, fontSize: 12, fontWeight: 600, marginBottom: 6, textTransform: "uppercase" }}>{label}</label>
+      <div style={{ position: "relative" }}>
+        {icon && <span style={{ position: "absolute", left: 14, top: 10, fontSize: 14 }}>{icon}</span>}
+        <input {...props} style={{ width: "100%", background: inputBg, border: inputBorder, borderRadius: 10, padding: "10px 14px", paddingLeft: icon ? 38 : 14, color: textColor, fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+      </div>
+    </div>
+  );
+};
+
+function ProfilePage({ user, setUser, theme }) {
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState({ 
     name: user?.name || "Donor Name", 
@@ -571,6 +625,7 @@ function ProfilePage({ user, ratingStats, setUser, theme }) {
     address: user?.organization || "42 Main Street, Colombo 7", 
     district: "Colombo" 
   });
+  const [officeLoc, setOfficeLoc] = useState(() => user?.officeLocation || null);
   const [profileImage, setProfileImage] = useState(user?.profileImage || null);
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -578,9 +633,6 @@ function ProfilePage({ user, ratingStats, setUser, theme }) {
   const isLight = theme === "light";
   const textColor = isLight ? "#111" : "white";
   const mutedColor = isLight ? "rgba(15,23,42,0.65)" : "rgba(255,255,255,0.55)";
-  const inputBg = isLight ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.04)";
-  const inputBorder = isLight ? "1px solid rgba(15,23,42,0.12)" : "1px solid rgba(255,255,255,0.15)";
-  const panelSubText = isLight ? "rgba(15,23,42,0.6)" : "rgba(255,255,255,0.55)";
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const [saved, setSaved] = useState(false);
@@ -594,6 +646,37 @@ function ProfilePage({ user, ratingStats, setUser, theme }) {
     reader.readAsDataURL(file);
   };
 
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation not supported");
+      return;
+    }
+
+    toast.loading("Getting current location...");
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const data = await res.json();
+        const address = data?.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        setForm((f) => ({ ...f, address }));
+        setOfficeLoc({ lat, lng, address });
+        toast.dismiss();
+        toast.success("Location set");
+      } catch {
+        setOfficeLoc({ lat, lng, address: "" });
+        setForm((f) => ({ ...f, address: `${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
+        toast.dismiss();
+        toast.success("Location coordinates set");
+      }
+    }, () => {
+      toast.dismiss();
+      toast.error("Failed to get location");
+    }, { enableHighAccuracy: true, timeout: 8000 });
+  };
+
   const handleSave = async () => {
     try {
       setLoading(true);
@@ -601,6 +684,9 @@ function ProfilePage({ user, ratingStats, setUser, theme }) {
       formData.append("name", form.name);
       formData.append("email", form.email);
       formData.append("phone", form.phone);
+      if (officeLoc?.address !== undefined) formData.append("officeAddress", officeLoc.address || form.address);
+      if (officeLoc?.lat !== undefined) formData.append("officeLat", officeLoc.lat);
+      if (officeLoc?.lng !== undefined) formData.append("officeLng", officeLoc.lng);
       if (imageFile) formData.append("profileImage", imageFile);
       
       const { updateProfile } = await import("../api/auth");
@@ -609,6 +695,7 @@ function ProfilePage({ user, ratingStats, setUser, theme }) {
       localStorage.setItem("user", JSON.stringify(res.data));
       if (setUser) setUser(res.data);
       setProfileImage(res.data.profileImage);
+      setOfficeLoc(res.data.officeLocation || officeLoc);
       setImageFile(null);
       setEdit(false); 
       setSaved(true); 
@@ -619,16 +706,6 @@ function ProfilePage({ user, ratingStats, setUser, theme }) {
       setLoading(false);
     }
   };
-
-  const InputField = ({ label, icon, ...props }) => (
-    <div style={{ marginBottom: 12 }}>
-      <label style={{ display: "block", color: mutedColor, fontSize: 12, fontWeight: 600, marginBottom: 6, textTransform: "uppercase" }}>{label}</label>
-      <div style={{ position: "relative" }}>
-        {icon && <span style={{ position: "absolute", left: 14, top: 10, fontSize: 14 }}>{icon}</span>}
-        <input {...props} style={{ width: "100%", background: inputBg, border: inputBorder, borderRadius: 10, padding: "10px 14px", paddingLeft: icon ? 38 : 14, color: textColor, fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-      </div>
-    </div>
-  );
 
   return (
     <div style={{ background: isLight ? "rgba(255,255,255,0.94)" : "transparent", borderRadius: 24, padding: 24, color: textColor }}>
@@ -677,12 +754,17 @@ function ProfilePage({ user, ratingStats, setUser, theme }) {
 
         {edit ? (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
-            <InputField label="Organization / Donor Name" value={form.name} onChange={set("name")} icon="🏢" />
-            <InputField label="Email" type="email" value={form.email} onChange={set("email")} icon="✉️" />
-            <InputField label="Phone" value={form.phone} onChange={set("phone")} icon="📱" />
-            <InputField label="District" value={form.district} onChange={set("district")} icon="🏘️" />
+            <ProfileInputField theme={theme} label="Organization / Donor Name" value={form.name} onChange={set("name")} icon="🏢" />
+            <ProfileInputField theme={theme} label="Email" type="email" value={form.email} onChange={set("email")} icon="✉️" />
+            <ProfileInputField theme={theme} label="Phone" value={form.phone} onChange={set("phone")} icon="📱" />
+            <ProfileInputField theme={theme} label="District" value={form.district} onChange={set("district")} icon="🏘️" />
             <div style={{ gridColumn: "1/-1" }}>
-              <InputField label="Address" value={form.address} onChange={set("address")} icon="📍" />
+              <ProfileInputField theme={theme} label="Address" value={form.address} onChange={set("address")} icon="📍" />
+              <div style={{ marginTop: 8 }}>
+                <button type="button" onClick={handleUseCurrentLocation} style={{ background: "transparent", border: "none", color: COLORS.amber, fontWeight: 700, cursor: "pointer", padding: 0 }}>
+                  📍 Use My Current Location
+                </button>
+              </div>
             </div>
             <div style={{ gridColumn: "1/-1", display: "flex", gap: 12, marginTop: 8 }}>
               <button disabled={loading} onClick={() => { setEdit(false); setProfileImage(user?.profileImage || null); setImageFile(null); }} style={{ flex: 1, background: isLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.05)", color: textColor, border: "none", padding: "12px", borderRadius: 10, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
@@ -705,14 +787,12 @@ function ProfilePage({ user, ratingStats, setUser, theme }) {
 }
 
 // ─── PAGE: FEEDBACKS ──────────────────────────────────────────────────────────
-function FeedbacksPage({ ratingStats, theme, refreshTrigger }) {
+function FeedbacksPage({ theme, refreshTrigger }) {
   const [activeTab, setActiveTab] = useState("pending");
   const [pending, setPending] = useState([]);
   const [submitted, setSubmitted] = useState([]);
   const [received, setReceived] = useState([]);
   const [loading, setLoading] = useState(false);
-  
-  // Feedback Modal State
   const [feedbackDonationId, setFeedbackDonationId] = useState(null);
   const [feedbackData, setFeedbackData] = useState({ rating: 0, comment: "" });
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
@@ -720,7 +800,6 @@ function FeedbacksPage({ ratingStats, theme, refreshTrigger }) {
   const isLight = theme === "light";
   const textColor = isLight ? "#111" : "white";
   const mutedColor = isLight ? "rgba(15,23,42,0.65)" : "rgba(255,255,255,0.55)";
-  const panelSubText = isLight ? "rgba(15,23,42,0.6)" : "rgba(255,255,255,0.55)";
 
   const fetchFeedbacks = async () => {
     setLoading(true);
@@ -732,9 +811,12 @@ function FeedbacksPage({ ratingStats, theme, refreshTrigger }) {
       if (resSub.success) setSubmitted(resSub.data || []);
       
       const resRec = await getMyReceivedFeedbacks();
-      if (resRec.success) setReceived(resRec.data || []);
-    } catch (err) {}
-    setLoading(false);
+      if (resRec.success) setReceived(resRec.data.received || []);
+    } catch (err) {
+      console.error("Error fetching feedbacks", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -1036,6 +1118,7 @@ function FundraisersPage({ fundRequests, reload, theme, user }) {
     if (urlParams.get("payment") === "success" && urlParams.get("request_id")) {
       setPaymentStep(2); // Show feedback
       if (urlParams.get("donation_id")) {
+         
         setDonationId(urlParams.get("donation_id"));
       }
       reload();
@@ -1074,13 +1157,13 @@ function FundraisersPage({ fundRequests, reload, theme, user }) {
                 {req.documents && (
                   <div style={{ display: "flex", gap: 12, flexWrap: "nowrap", overflowX: "auto", marginBottom: 16, fontSize: 16, fontWeight: 600, paddingBottom: 4 }}>
                     {req.documents.needStatement && (
-                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(req.documents.needStatement.startsWith('http') ? req.documents.needStatement : `http://localhost:5000/uploads/${req.documents.needStatement.split(/[\\/]/).pop()}`); }} style={{color: COLORS.amber, textDecoration: "none", background: isLight ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.2)", padding: "8px 16px", borderRadius: 8, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap"}}>📄 Need Statement</a>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(req.documents.needStatement.startsWith('http') ? req.documents.needStatement : `http://${window.location.hostname}:5000/uploads/${req.documents.needStatement.split(/[\\/]/).pop()}`); }} style={{color: COLORS.amber, textDecoration: "none", background: isLight ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.2)", padding: "8px 16px", borderRadius: 8, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap"}}>📄 Need Statement</a>
                     )}
                     {req.documents.registrationCertificate && (
-                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(req.documents.registrationCertificate.startsWith('http') ? req.documents.registrationCertificate : `http://localhost:5000/uploads/${req.documents.registrationCertificate.split(/[\\/]/).pop()}`); }} style={{color: COLORS.amber, textDecoration: "none", background: isLight ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.2)", padding: "8px 16px", borderRadius: 8, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap"}}>📄 Registration</a>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(req.documents.registrationCertificate.startsWith('http') ? req.documents.registrationCertificate : `http://${window.location.hostname}:5000/uploads/${req.documents.registrationCertificate.split(/[\\/]/).pop()}`); }} style={{color: COLORS.amber, textDecoration: "none", background: isLight ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.2)", padding: "8px 16px", borderRadius: 8, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap"}}>📄 Registration</a>
                     )}
                     {req.documents.bankDetails && (
-                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(req.documents.bankDetails.startsWith('http') ? req.documents.bankDetails : `http://localhost:5000/uploads/${req.documents.bankDetails.split(/[\\/]/).pop()}`); }} style={{color: COLORS.amber, textDecoration: "none", background: isLight ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.2)", padding: "8px 16px", borderRadius: 8, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap"}}>📄 Bank Details</a>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setViewDocUrl(req.documents.bankDetails.startsWith('http') ? req.documents.bankDetails : `http://${window.location.hostname}:5000/uploads/${req.documents.bankDetails.split(/[\\/]/).pop()}`); }} style={{color: COLORS.amber, textDecoration: "none", background: isLight ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.2)", padding: "8px 16px", borderRadius: 8, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap"}}>📄 Bank Details</a>
                     )}
                   </div>
                 )}
@@ -1113,7 +1196,13 @@ function FundraisersPage({ fundRequests, reload, theme, user }) {
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         fundraiser={selectedReq}
-        onSuccess={reload}
+        onSuccess={(donationData) => {
+          reload();
+          if (donationData && donationData._id) {
+            setDonationId(donationData._id);
+            setPaymentStep(2);
+          }
+        }}
         onOnlinePay={handleOnlinePay}
         currentUserId={user?._id}
       />
@@ -1298,7 +1387,7 @@ export default function DonorDashboard({ theme }) {
 
   useEffect(() => {
     loadData();
-    
+
     // Notification polling
     let intervalId;
     const fetchNotifications = async () => {
@@ -1310,7 +1399,9 @@ export default function DonorDashboard({ theme }) {
         if (unread.length > 0) {
           await markNotificationsAsRead();
         }
-      } catch (err) {}
+      } catch (err) {
+        console.error("Error fetching notifications", err);
+      }
     };
     
     fetchNotifications();
@@ -1320,7 +1411,7 @@ export default function DonorDashboard({ theme }) {
 
   useEffect(() => {
     if (!user?._id) return;
-    const socket = io("http://localhost:5000");
+    const socket = io(`http://${window.location.hostname}:5000`);
     socket.emit("join_user_room", user._id);
     
     socket.on("new_notification", (notif) => {
@@ -1348,6 +1439,7 @@ export default function DonorDashboard({ theme }) {
       toast.success(`Request ${status} successfully!`);
       loadData();
     } catch (err) {
+      console.error(err);
       toast.error("Failed to update request");
     }
   };
@@ -1359,12 +1451,10 @@ export default function DonorDashboard({ theme }) {
     fundraisers: <FundraisersPage fundRequests={fundRequests} reload={loadData} theme={theme} user={user} />,
     impact: <ImpactPage stats={stats} theme={theme} />,
     requests: <RequestsPage requests={donorRequests} onRequestAction={handleRequestAction} theme={theme} user={user} />,
-    feedbacks: <FeedbacksPage ratingStats={ratingStats} theme={theme} refreshTrigger={refreshTrigger} />,
+    feedbacks: <FeedbacksPage theme={theme} refreshTrigger={refreshTrigger} />,
     notifications: <NotificationsPage notifications={notifications} setNotifications={setNotifications} theme={theme} />,
-    profile: <ProfilePage user={user} ratingStats={ratingStats} setUser={setUser} theme={theme} />,
+    profile: <ProfilePage user={user} setUser={setUser} theme={theme} />,
   };
-
-  const pendingRequestsCount = donorRequests.filter(r => r.status === "pending").length;
 
   return (
     <DashboardLayout 

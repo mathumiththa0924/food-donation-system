@@ -85,7 +85,11 @@ exports.updateStatus = async (req, res) => {
         relatedId: request._id
       }));
       if (notifications.length > 0) {
-        await Notification.insertMany(notifications);
+        const createdNotifs = await Notification.insertMany(notifications);
+        const io = req.app.get("io");
+        if (io) {
+          createdNotifs.forEach((notif) => io.to(notif.recipientId.toString()).emit("new_notification", notif));
+        }
       }
     }
 

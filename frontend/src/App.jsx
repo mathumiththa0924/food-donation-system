@@ -1,14 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 // Import real pages
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import DonorDashboard from "./pages/DonorDashboard";
 import NgoDashboard from "./pages/NgoDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import VolunteerDashboard from "./pages/VolunteerDashboard";
 import MockCheckout from "./pages/MockCheckout";
 import Welcome from "./pages/Welcome";
 import FoodDonationInfo from "./pages/FoodDonationInfo";
@@ -42,18 +44,23 @@ const COLORS = {
 
 const foodItems = ["🍱","🥘","🍲","🥗","🍞","🥦","🍅","🥕","🍎","🥚","🧆","🫕"];
 
-function FloatingFood({ count = 12 }) {
-  const items = useRef(
-    Array.from({ length: count }, (_, i) => ({
-      emoji: foodItems[i % foodItems.length],
-      x: Math.random() * 90 + 5,
-      y: Math.random() * 90 + 5,
-      size: Math.random() * 18 + 14,
-      dur: Math.random() * 8 + 10,
-      delay: Math.random() * 6,
-      drift: Math.random() * 40 - 20,
-    }))
-  ).current;
+export function FloatingFood({ count = 12 }) {
+  const items = useMemo(() => 
+    Array.from({ length: count }, (_, i) => {
+      /* eslint-disable react-hooks/purity */
+      return {
+        emoji: foodItems[i % foodItems.length],
+        x: Math.random() * 90 + 5,
+        y: Math.random() * 90 + 5,
+        size: Math.random() * 18 + 14,
+        dur: Math.random() * 8 + 10,
+        delay: Math.random() * 6,
+        drift: Math.random() * 40 - 20,
+      };
+      /* eslint-enable react-hooks/purity */
+    }),
+    [count]
+  );
 
   return (
     <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>
@@ -82,7 +89,7 @@ function FloatingFood({ count = 12 }) {
   );
 }
 
-function FixedBrandLogo({ theme }) {
+export function FixedBrandLogo({ theme }) {
   const isLight = theme === "light";
   return (
     <div className="fixed-brand" style={{
@@ -110,6 +117,7 @@ function FixedBrandLogo({ theme }) {
 }
 
 export default function App() {
+  const isAdminMode = import.meta.env.MODE === "admin";
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
 
   useEffect(() => {
@@ -154,7 +162,7 @@ export default function App() {
             alignItems: "center",
             justifyContent: "center",
             fontSize: 20,
-            zIndex: 100,
+            zIndex: 9999,
             border: isLight ? "1px solid rgba(15,23,42,0.12)" : "1px solid rgba(255,255,255,0.15)",
             borderRadius: "50%",
             background: isLight ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.06)",
@@ -209,8 +217,9 @@ export default function App() {
 
         <div style={{ position: "relative", zIndex: 1 }}>
           <Routes>
-<Route path="/login" element={<Login theme={theme} />} />
+          <Route path="/login" element={<Login theme={theme} />} />
           <Route path="/register" element={<Register theme={theme} />} />
+          <Route path="/verify-email" element={<VerifyEmail theme={theme} />} />
           <Route path="/forgot-password" element={<ForgotPassword theme={theme} />} />
           
           <Route path="/donor" element={
@@ -228,9 +237,17 @@ export default function App() {
               <AdminDashboard theme={theme} />
             </ProtectedRoute>
           } />
+          <Route path="/volunteer" element={
+            <ProtectedRoute allowedRoles={["volunteer"]}>
+              <VolunteerDashboard theme={theme} />
+            </ProtectedRoute>
+          } />
           
-          <Route path="/mock-checkout" element={<MockCheckout theme={theme} />} />
-          
+          <Route path="/mock-checkout" element={
+            <ProtectedRoute allowedRoles={["donor", "admin"]}>
+              <MockCheckout theme={theme} />
+            </ProtectedRoute>
+          } />
           <Route path="/donate-food" element={<FoodDonationInfo theme={theme} />} />
           <Route path="/fund-campaigns" element={<FundCampaignInfo theme={theme} />} />
           <Route path="/impact" element={<ImpactInfo theme={theme} />} />
@@ -239,10 +256,10 @@ export default function App() {
           <Route path="/terms" element={<TermsOfService theme={theme} />} />
           <Route path="/about" element={<AboutUs theme={theme} />} />
             
-          <Route path="/" element={<Welcome theme={theme} />} />
+          <Route path="/" element={isAdminMode ? <Navigate to="/login" replace /> : <Welcome theme={theme} />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
-          <Toaster position="top-right" />
+          <Toaster position="top-right" containerStyle={{ zIndex: 999999 }} />
         </div>
       </div>
     </BrowserRouter>

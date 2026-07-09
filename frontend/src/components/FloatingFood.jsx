@@ -1,18 +1,24 @@
-import { useRef } from "react";
+import { useMemo } from "react";
 
-const foodItems = ["🍱","🥘","🍲","🥗","🍞","🥦","🍅","🥕","🍎","🥚","🧆","🫕"];
+const foodItems = ["🍱","🥘","🍲","🥗","🍞","🥦","🍅","🥕","🍎","🥚","🧆","🫕","🍱","🥘","🍲","🥗","🍞","🥦","🍅","🥕","🍎","🥚","🧆","🫕"];
+
+const makeNoise = (index, salt) => {
+  const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+};
 
 export default function FloatingFood({ count = 12 }) {
-  const items = useRef(
+  const items = useMemo(() => 
     Array.from({ length: count }, (_, i) => ({
       emoji: foodItems[i % foodItems.length],
-      x: Math.random() * 90 + 5,
-      y: Math.random() * 90 + 5,
-      size: Math.random() * 18 + 14,
-      dur: Math.random() * 8 + 10,
-      delay: Math.random() * 6,
-    }))
-  ).current;
+      x: makeNoise(i, 1) * 90 + 5,
+      y: makeNoise(i, 2) * 90 + 5,
+      size: makeNoise(i, 3) * 18 + 14,
+      dur: makeNoise(i, 4) * 8 + 10,
+      delay: makeNoise(i, 5) * 6,
+    })),
+    [count]
+  );
 
   return (
     <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>

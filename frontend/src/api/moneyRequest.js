@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/money-requests";
+const API_URL = `http://${window.location.hostname}:5000/api/money-requests";
 
 const getConfig = () => ({
   headers: {

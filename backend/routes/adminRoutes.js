@@ -8,16 +8,41 @@ const Feedback = require("../models/Feedback");
 const Notification = require("../models/Notification");
 const Settings = require("../models/Settings");
 const MoneyDonation = require("../models/MoneyDonation");
-const bcrypt = require("bcryptjs");
+const { ensureCanonicalAdmin } = require("../services/adminBootstrap");
 
 // 🔐 ADMIN ONLY MIDDLEWARE
 const adminOnly = authorizeRoles("admin");
+
+// 🔧 SETUP / REPAIR CANONICAL ADMIN (no auth — optional secret in production)
+router.post("/setup-admin", async (req, res) => {
+  try {
+    const setupSecret = process.env.ADMIN_SETUP_SECRET;
+    if (setupSecret && req.body?.secret !== setupSecret) {
+      return res.status(403).json({ success: false, message: "Invalid setup secret" });
+    }
+
+    const { admin, removedDuplicates } = await ensureCanonicalAdmin();
+
+    res.json({
+      success: true,
+      message: "Canonical admin account is ready",
+      data: {
+        email: admin.email,
+        name: admin.name,
+        role: admin.role,
+        removedDuplicates,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 //  GET ALL USERS (Admin Dashboard)
 router.get("/users", protect, adminOnly, async (req, res) => {
   try {
     const { search, role, status, page = 1, limit = 100 } = req.query; // limit 100 default to prevent immediate breakage if frontend doesn't pass it yet
-    let query = {};
+    let query = { role: { $ne: "admin" } };
     
     if (search) {
       query.$or = [
@@ -55,7 +80,7 @@ router.get("/users", protect, adminOnly, async (req, res) => {
 router.get("/donations", protect, adminOnly, async (req, res) => {
   try {
     const donations = await Food.find()
-      .populate("donor", "name email phone organization")
+      .populate("donor", "name email phone organization role")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -73,7 +98,7 @@ router.get("/requests", protect, adminOnly, async (req, res) => {
   try {
     const requests = await Request.find()
       .populate("foodId", "foodName quantity location")
-      .populate("ngoId", "name email organization")
+      .populate("ngoId", "name email organization role")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -90,8 +115,8 @@ router.get("/requests", protect, adminOnly, async (req, res) => {
 router.get("/feedbacks", protect, adminOnly, async (req, res) => {
   try {
     const feedbacks = await Feedback.find()
-      .populate("donorId", "name email phone organization")
-      .populate("ngoId", "name email phone organization")
+      .populate("donorId", "name email phone organization role")
+      .populate("ngoId", "name email phone organization role")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -107,7 +132,7 @@ router.get("/feedbacks", protect, adminOnly, async (req, res) => {
 // 📈 GET ADMIN STATS
 router.get("/stats", protect, adminOnly, async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
+    const totalUsers = await User.countDocuments({ role: { $ne: "admin" } });
     const totalDonations = await Food.countDocuments();
     const totalRequests = await Request.countDocuments();
     const totalFeedbacks = await Feedback.countDocuments();
@@ -236,6 +261,9 @@ router.put("/users/:id/activate", protect, adminOnly, async (req, res) => {
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
+
+    // Send approval email
+    await require("../services/emailService").sendApprovalEmail(user.email, user.name);
 
     res.json({
       success: true,
@@ -460,7 +488,11 @@ router.post("/notifications", protect, adminOnly, async (req, res) => {
       type: "general"
     }));
 
-    await Notification.insertMany(notifications);
+    const createdNotifs = await Notification.insertMany(notifications);
+    const io = req.app.get("io");
+    if (io) {
+      createdNotifs.forEach((notif) => io.to(notif.recipientId.toString()).emit("new_notification", notif));
+    }
 
     res.json({
       success: true,

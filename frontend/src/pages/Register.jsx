@@ -87,16 +87,20 @@ export default function Register({ theme = "dark" }) {
 
     try {
       setLoading(true);
-      await registerUser({ 
+      const registrationData = { 
         name: name.trim(), 
         email: email.trim(), 
         password, 
         role,
         phone: phone.trim(),
         organization: organization.trim()
-      });
-      setSuccess("Registration successful. Redirecting to login...");
-      setTimeout(() => navigate("/login"), 1500);
+      };
+      await registerUser(registrationData);
+      setLoading(false);
+      setSuccess("Registration successful. Redirecting to verification...");
+      setTimeout(() => {
+        navigate("/verify-email", { state: { email: registrationData.email } });
+      }, 1500);
     } catch (err) {
       console.error("Registration error:", err);
       setFormError(err.response?.data?.message || err.message || "Registration failed");
@@ -181,7 +185,7 @@ export default function Register({ theme = "dark" }) {
               <div style={{ marginBottom: "24px" }}>
                 <label style={labelStyle}>I WANT TO JOIN AS</label>
                 <div style={{ display: "flex", gap: "10px" }}>
-                  {[{id: "donor", label: "🤝 Donor"}, {id: "ngo", label: "🏢 NGO"}].map(r => (
+                  {[{id: "donor", label: "🤝 Donor"}, {id: "ngo", label: "🏢 NGO"}, {id: "volunteer", label: "🚚 Volunteer"}].map(r => (
                     <div key={r.id} onClick={() => setRole(r.id)} style={{
                       flex: 1, padding: "12px 8px", textAlign: "center", borderRadius: "12px", cursor: "pointer",
                       border: role === r.id ? "1px solid #e8923a" : "1px solid rgba(255,255,255,0.1)",

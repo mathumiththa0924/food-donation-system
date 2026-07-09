@@ -3,15 +3,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { loginUser } from "../api/auth";
 import FloatingFood from "../components/FloatingFood";
 
-export default function Login({ theme = "dark" }) {
+export default function Login({ theme = "dark", isAdminPortal = false }) {
   const isLight = theme === "light";
+  const isAdminMode = isAdminPortal || import.meta.env.MODE === "admin";
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState(isAdminMode ? "admin" : "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
   const pageBg = isLight
     ? "radial-gradient(ellipse at 20% 20%, #ffffff 0%, #f8fafc 40%, #e2e8f0 70%, #d6d8de 100%)"
     : "radial-gradient(ellipse at 20% 20%, #2d5a3d 0%, #1a3a2a 40%, #0f2219 70%, #08150e 100%)";
@@ -38,7 +41,9 @@ export default function Login({ theme = "dark" }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password || !role) {
+    const selectedRole = isAdminMode ? "admin" : role;
+
+    if (!email || !password || !selectedRole) {
       setError("Please fill all fields and select role.");
       return;
     }
@@ -46,7 +51,14 @@ export default function Login({ theme = "dark" }) {
     try {
       setLoading(true);
       setError("");
-      const response = await loginUser({ email, password });
+      const response = await loginUser({ email, password, otpCode: requires2FA ? otpCode : undefined });
+      
+      if (response?.requires2FA) {
+        setRequires2FA(true);
+        setError("");
+        return;
+      }
+
       const token = response.token;
       const user = response?.data?.user;
 
@@ -54,7 +66,12 @@ export default function Login({ theme = "dark" }) {
         setError("Invalid login response from server.");
         return;
       }
-      if (user.role !== role) {
+      if (isAdminMode && user.role !== "admin") {
+        setError("Use the main app to sign in as donor or NGO.");
+        return;
+      }
+
+      if (user.role !== selectedRole) {
         setError("Selected role does not match your account role.");
         return;
       }
@@ -62,9 +79,29 @@ export default function Login({ theme = "dark" }) {
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
 
-      if (user.role === "donor") navigate("/donor");
-      else if (user.role === "ngo") navigate("/ngo");
-      else navigate("/admin");
+      if (user.role === "donor") {
+        if (isAdminMode) {
+          setError("Use the main app to access donor pages.");
+          return;
+        }
+        navigate("/donor");
+      } else if (user.role === "ngo") {
+        if (isAdminMode) {
+          setError("Use the main app to access NGO pages.");
+          return;
+        }
+        navigate("/ngo");
+      } else if (user.role === "volunteer") {
+        if (isAdminMode) {
+          setError("Use the main app to access Volunteer pages.");
+          return;
+        }
+        navigate("/volunteer");
+      } else if (isAdminMode) {
+        navigate("/admin");
+      } else {
+        window.location.href = "http://localhost:4174/";
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
     } finally {
@@ -103,21 +140,36 @@ export default function Login({ theme = "dark" }) {
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: "32px" }}>
             <p style={{ color: "#d68840", fontSize: "12px", fontWeight: "700", letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "8px" }}>
-              WELCOME BACK
+              {isAdminMode ? "ADMIN ACCESS" : "WELCOME BACK"}
             </p>
             <h2 style={{ color: titleColor, fontSize: "36px", fontWeight: "700", margin: 0 }}>
-              Sign in to continue
+              {isAdminMode ? "Sign in to the admin panel" : "Sign in to continue"}
             </h2>
+            {isAdminMode && (
+              <p style={{ color: isLight ? "rgba(15,23,42,0.65)" : "rgba(255,255,255,0.72)", fontSize: 13, marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+                Use the canonical admin account for this local admin portal.
+              </p>
+            )}
           </div>
 
           {error && <p style={{ color: "#ffb3b3", fontSize: "14px", marginBottom: "20px", background: "rgba(255,0,0,0.1)", padding: "10px", borderRadius: "8px", border: "1px solid rgba(255,0,0,0.2)" }}>{error}</p>}
 
-          <div style={{ marginBottom: "24px" }}>
+          {!requires2FA ? (
+            <>
+              <div style={{ marginBottom: "24px" }}>
             <label style={{ color: "#95a89b", fontSize: "11px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "8px", display: "block" }}>
               I WANT TO JOIN AS
             </label>
-            <div style={{ display: "flex", gap: "12px" }}>
-              {[{id: "donor", label: "🤝 Donor"}, {id: "ngo", label: "🏢 NGO"}, {id: "admin", label: "⚙️ Admin"}].map(r => (
+            {isAdminMode && (
+              <div style={{ marginBottom: 10, color: isLight ? "rgba(15,23,42,0.65)" : "rgba(255,255,255,0.72)", fontSize: 12 }}>
+                Admin role is locked in this portal.
+              </div>
+            )}
+              <div style={{ display: "flex", gap: "12px" }}>
+              {(isAdminMode
+                ? [{id: "admin", label: "⚙️ Admin"}]
+                : [{id: "donor", label: "🤝 Donor"}, {id: "ngo", label: "🏢 NGO"}, {id: "volunteer", label: "🚚 Volunteer"}, {id: "admin", label: "⚙️ Admin"}]
+              ).map(r => (
                 <div key={r.id} onClick={() => setRole(r.id)} style={{
                   flex: 1, padding: "12px 8px", textAlign: "center", borderRadius: "12px", cursor: "pointer",
                   border: role === r.id ? `1px solid ${accentColor}` : `1px solid ${isLight ? 'rgba(15,23,42,0.12)' : 'rgba(255,255,255,0.1)'}`,
@@ -144,6 +196,7 @@ export default function Login({ theme = "dark" }) {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="off"
                 style={inputStyle}
                 onFocus={(e) => { e.target.style.border = `1px solid ${accentColor}`; e.target.style.background = isLight ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.06)"; }}
                 onBlur={(e) => { e.target.style.border = `1px solid ${isLight ? 'rgba(15,23,42,0.12)' : 'rgba(255,255,255,0.1)'}`; e.target.style.background = inputBg; }}
@@ -159,9 +212,10 @@ export default function Login({ theme = "dark" }) {
               <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "14px", filter: "opacity(0.8)" }}>🔒</span>
               <input 
                 type={showPassword ? "text" : "password"}
-                placeholder="Enter your password"
+                placeholder={isAdminMode ? "Admin password" : "Enter your password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
                 style={{
                   width: "100%",
                   padding: "16px 48px",
@@ -190,11 +244,56 @@ export default function Login({ theme = "dark" }) {
             </div>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "32px" }}>
-            <Link to="/forgot-password" style={{ color: "#d68840", fontSize: "13px", textDecoration: "none", fontWeight: "500", transition: "color 0.2s", position: "relative", zIndex: 10 }} onMouseOver={(e)=>e.target.style.color="#f2b479"} onMouseOut={(e)=>e.target.style.color="#d68840"}>
-              Forgot password?
-            </Link>
-          </div>
+          {!isAdminMode && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "32px" }}>
+              <Link to="/forgot-password" style={{ color: "#d68840", fontSize: "13px", textDecoration: "none", fontWeight: "500", transition: "color 0.2s", position: "relative", zIndex: 10 }} onMouseOver={(e)=>e.target.style.color="#f2b479"} onMouseOut={(e)=>e.target.style.color="#d68840"}>
+                Forgot password?
+              </Link>
+            </div>
+          )}
+            </>
+          ) : (
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ color: "#95a89b", fontSize: "11px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "8px", display: "block" }}>
+                VERIFICATION CODE
+              </label>
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "14px", filter: "opacity(0.8)" }}>🔑</span>
+                <input 
+                  type="text" 
+                  placeholder="Enter 6-digit code"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  style={inputStyle}
+                  onFocus={(e) => { e.target.style.border = `1px solid ${accentColor}`; e.target.style.background = isLight ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.06)"; }}
+                  onBlur={(e) => { e.target.style.border = `1px solid ${isLight ? 'rgba(15,23,42,0.12)' : 'rgba(255,255,255,0.1)'}`; e.target.style.background = inputBg; }}
+                />
+              </div>
+              <p style={{ fontSize: "12px", color: "#8b9c91", marginTop: "12px" }}>
+                A verification code was sent to your email.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setRequires2FA(false);
+                  setOtpCode("");
+                  setError("");
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#d68840",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  padding: 0,
+                  marginTop: "8px",
+                  fontWeight: "600"
+                }}
+              >
+                ← Back to login
+              </button>
+            </div>
+          )}
 
           <button 
             type="submit" 
@@ -221,7 +320,7 @@ export default function Login({ theme = "dark" }) {
             onMouseUp={(e) => !loading && (e.currentTarget.style.transform = "scale(1)")}
             onMouseLeave={(e) => !loading && (e.currentTarget.style.transform = "scale(1)")}
           >
-            {loading ? "Signing in..." : "Login →"}
+            {loading ? "Signing in..." : requires2FA ? "Verify & Login →" : "Login →"}
           </button>
 
           <p style={{ textAlign: "center", marginTop: "32px", fontSize: "14px", color: "#8b9c91" }}>

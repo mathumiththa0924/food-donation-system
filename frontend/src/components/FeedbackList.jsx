@@ -1,27 +1,21 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getFeedbacksByDonor, deleteFeedback } from "../api/feedback";
 import RatingStars from "./RatingStars";
 import toast from "react-hot-toast";
 import { COLORS } from "../theme";
 
 // ✅ FEEDBACK LIST COMPONENT - Display all feedbacks for a donor
-const FeedbackList = ({ donorId, donorName, canDelete = false }) => {
+const FeedbackList = ({ donorId, canDelete = false }) => {
   const [feedbacks, setFeedbacks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [averageRating, setAverageRating] = useState(0);
-  const [stats, setStats] = useState(null);
 
-  useEffect(() => {
-    fetchFeedbacks();
-  }, [donorId]);
-
-  const fetchFeedbacks = async () => {
+  const fetchFeedbacks = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await getFeedbacksByDonor(donorId);
       if (response.success) {
         setFeedbacks(response.feedbacks || []);
-        setStats(response.donor);
 
         // Calculate average rating
         if (response.feedbacks.length > 0) {
@@ -37,7 +31,11 @@ const FeedbackList = ({ donorId, donorName, canDelete = false }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [donorId]);
+
+  useEffect(() => {
+    fetchFeedbacks();
+  }, [fetchFeedbacks]);
 
   const handleDelete = async (feedbackId) => {
     if (window.confirm("Are you sure you want to delete this feedback?")) {

@@ -122,14 +122,14 @@ export default function DonationCheckoutModal({ open, onClose, fundraiser, onSuc
       fd.append("donorNote", donorNote.trim());
       if (receiptFile) fd.append("receipt", receiptFile);
 
-      await createMoneyDonation(fd);
+      const res = await createMoneyDonation(fd);
       toast.success(
         method === "cash_handover"
           ? "Handover request sent! NGO will confirm once received."
           : "Donation submitted! NGO will verify and confirm."
       );
       resetAndClose();
-      onSuccess?.();
+      onSuccess?.(res?.data);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to submit donation");
     } finally {

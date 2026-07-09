@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { createMoneyDonation } from "../api/moneyDonation";
@@ -178,6 +178,23 @@ export default function MockCheckout({ theme = "dark" }) {
   const [cvc, setCvc] = useState("");
   const [step, setStep] = useState("form");
   const [receiptDetails, setReceiptDetails] = useState(null);
+
+  const token = localStorage.getItem("token");
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  })();
+
+  useEffect(() => {
+    if (!token || !user) {
+      navigate("/login", { replace: true });
+    }
+  }, [navigate, token, user]);
+
+  if (!token || !user) return null;
 
   const pageBg = isLight
     ? "radial-gradient(ellipse at 20% 20%, #ffffff 0%, #f8fafc 40%, #e2e8f0 70%, #d6d8de 100%)"

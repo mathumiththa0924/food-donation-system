@@ -4,7 +4,9 @@ const MoneyRequest = require('../models/MoneyRequest');
 const getMessagesByRequestId = async (req, res) => {
   try {
     const { requestId } = req.params;
-    const messages = await Message.find({ requestId }).sort({ createdAt: 1 });
+    const messages = await Message.find({ requestId })
+      .populate('senderId', 'name')
+      .sort({ createdAt: 1 });
 
     res.status(200).json({
       success: true,
@@ -33,7 +35,9 @@ const getMessagesByMoneyRequestId = async (req, res) => {
       return res.status(403).json({ success: false, message: "Not authorized" });
     }
 
-    const messages = await Message.find({ moneyRequestId }).sort({ createdAt: 1 });
+    const messages = await Message.find({ moneyRequestId })
+      .populate('senderId', 'name')
+      .sort({ createdAt: 1 });
 
     res.status(200).json({
       success: true,

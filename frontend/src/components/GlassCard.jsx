@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function GlassCard({ children, style = {}, animate = false }) {
   return (
     <div

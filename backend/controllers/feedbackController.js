@@ -75,6 +75,15 @@ const createFeedback = async (req, res) => {
       type: 'feedback_received',
       relatedId: newFeedback._id
     });
+    const io = req.app.get("io");
+    if (io) {
+      io.to(donorId.toString()).emit("new_notification", {
+        recipientId: donorId,
+        message: `${req.user.name || 'An NGO'} left a ${rating}-star feedback on your food donation.`,
+        type: 'feedback_received',
+        relatedId: newFeedback._id
+      });
+    }
 
     res.status(201).json({ 
       success: true, 

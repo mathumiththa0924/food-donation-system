@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { COLORS } from "../theme";
 
 export default function Btn({ children, onClick, variant = "primary", disabled = false, style = {}, type = "button" }) {

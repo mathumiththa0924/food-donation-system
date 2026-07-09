@@ -173,7 +173,8 @@ code {
   font-size: 14px;
 }
 
-.chat-message-right .chat-bubble {
+
+.chat-message-right .chat-bubble {
   background: var(--accent);
   color: white;
   border-bottom-right-radius: 4px;

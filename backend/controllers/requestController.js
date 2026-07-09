@@ -2,6 +2,29 @@ const Request = require('../models/Request');
 const Food = require('../models/Food');
 const mongoose = require("mongoose");
 const Notification = require('../models/Notification');
+const User = require('../models/User');
+const { generateTaxReceipt } = require('../services/pdfService');
+const { sendReceiptEmail } = require('../services/emailService');
+
+const sendFoodDonationReceipt = async (request) => {
+  const donorUser = await User.findById(request.foodId.donor).select('name email');
+  if (!donorUser?.email) return;
+
+  const receiptPath = await generateTaxReceipt(donorUser.name || donorUser.email || 'Donor', {
+    type: 'food',
+    foodName: request.foodId.foodName,
+    quantity: request.qty,
+    unit: request.foodId.unit,
+    peopleServed: request.qty
+  });
+
+  await sendReceiptEmail(
+    donorUser.email,
+    donorUser.name || 'Donor',
+    receiptPath,
+    'Your MealBridge Food Donation Receipt'
+  );
+};
 
 const createRequest = async (req, res) => {
   try {
@@ -99,6 +122,9 @@ const updateStatus = async (req, res) => {
     if (req.user.role === "donor" && request.foodId.donor.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: "Donor can update only requests for their food" });
     }
+    if (req.user.role === "volunteer" && request.volunteerId?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "Volunteer can update only assigned requests" });
+    }
 
     const transitionMap = {
       pending: ["accepted", "rejected"],
@@ -111,6 +137,14 @@ const updateStatus = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Invalid transition from ${request.status} to ${status}`,
+      });
+    }
+
+    if (request.status === status) {
+      return res.json({
+        success: true,
+        message: "Request status is already up to date",
+        data: request,
       });
     }
 
@@ -159,6 +193,33 @@ const updateStatus = async (req, res) => {
         update.status = 'delivered';
       }
       await Food.findByIdAndUpdate(request.foodId._id, { ...update, ...historyUpdate });
+
+      // === GAMIFICATION LOGIC ===
+      // Award points to the Donor based on quantity completed
+      try {
+        const pointsAwarded = request.qty * 10; // 10 points per unit of food
+        const donorUser = await User.findById(request.foodId.donor);
+        if (donorUser) {
+          donorUser.points += pointsAwarded;
+          donorUser.totalDonations += 1;
+          
+          // Badge Logic
+          if (donorUser.points >= 1000) donorUser.badge = "Platinum";
+          else if (donorUser.points >= 500) donorUser.badge = "Gold";
+          else if (donorUser.points >= 200) donorUser.badge = "Silver";
+          else if (donorUser.points >= 50) donorUser.badge = "Bronze";
+
+          await donorUser.save();
+        }
+      } catch (err) {
+        console.error("Gamification Error:", err);
+      }
+
+      try {
+        await sendFoodDonationReceipt(request);
+      } catch (err) {
+        console.error('Error generating/sending completed food donation receipt:', err);
+      }
     }
 
     const recipientId = req.user.role === 'ngo' ? request.foodId.donor : request.ngoId;
@@ -202,6 +263,11 @@ const getRequests = async (req, res) => {
       finalRequests = requests.filter(
         (r) => r.foodId && r.foodId.donor && r.foodId.donor._id.toString() === req.user._id.toString()
       );
+    } else if (req.user.role === "volunteer") {
+      // Volunteers see accepted requests (available to pick up) and their assigned ones
+      finalRequests = requests.filter(
+        (r) => (r.status === "accepted" && !r.volunteerId) || (r.volunteerId && r.volunteerId.toString() === req.user._id.toString())
+      );
     }
 
     res.json({
@@ -214,4 +280,47 @@ const getRequests = async (req, res) => {
   }
 };
 
-module.exports = { createRequest, updateStatus, getRequests };
+const assignVolunteer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid request id" });
+    }
+
+    const request = await Request.findById(id).populate('foodId').populate('ngoId');
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Request not found" });
+    }
+
+    if (request.status !== "accepted") {
+      return res.status(400).json({ success: false, message: "Only accepted requests can be picked up by volunteers" });
+    }
+
+    if (request.volunteerId) {
+      return res.status(400).json({ success: false, message: "This request is already assigned to a volunteer" });
+    }
+
+    request.volunteerId = req.user._id;
+    await request.save();
+
+    // Notify donor and NGO
+    const Notification = require('../models/Notification');
+    const io = req.app.get("io");
+    
+    const notifs = [
+      { recipientId: request.foodId.donor, message: `Volunteer ${req.user.name} has accepted to deliver your food!`, type: 'volunteer_assigned', relatedId: request._id },
+      { recipientId: request.ngoId._id, message: `Volunteer ${req.user.name} is on the way to pick up the food from the donor.`, type: 'volunteer_assigned', relatedId: request._id }
+    ];
+    
+    const createdNotifs = await Notification.insertMany(notifs);
+    if (io) {
+      createdNotifs.forEach(n => io.to(n.recipientId.toString()).emit("new_notification", n));
+    }
+
+    res.json({ success: true, message: "Volunteer assigned successfully", data: request });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { createRequest, updateStatus, getRequests, assignVolunteer };

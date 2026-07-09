@@ -10,6 +10,11 @@ export const loginUser = async (data) => {
   return response.data;
 };
 
+export const requestPasswordReset = async (data) => {
+  const response = await API.post("/auth/request-password-reset", data);
+  return response.data;
+};
+
 export const resetPassword = async (data) => {
   const response = await API.post("/auth/reset-password", data);
   return response.data;
@@ -17,6 +22,11 @@ export const resetPassword = async (data) => {
 
 export const updateProfile = async (data) => {
   const response = await API.put("/auth/profile", data);
+  return response.data;
+};
+
+export const getLeaderboard = async () => {
+  const response = await API.get('/auth/leaderboard');
   return response.data;
 };
 

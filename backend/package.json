@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "setup-admin": "node scripts/setup-admin.js",
+    "check-admin": "node scripts/check-admin-db.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -22,10 +24,13 @@
     "mongoose": "^7.8.7",
     "multer": "^2.1.1",
     "multer-storage-cloudinary": "^4.0.0",
+    "nodemailer": "^9.0.3",
+    "pdfkit": "^0.19.1",
     "socket.io": "^4.8.3",
     "stripe": "^22.2.0"
   },
   "devDependencies": {
+    "@types/node": "^20.19.0",
     "nodemon": "^3.0.0"
   }
 }

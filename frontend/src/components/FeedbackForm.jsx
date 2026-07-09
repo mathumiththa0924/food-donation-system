@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { createFeedback } from "../api/feedback";
 import RatingStars from "./RatingStars";
 import toast from "react-hot-toast";

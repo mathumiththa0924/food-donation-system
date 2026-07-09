@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { COLORS } from "../theme";
 
-export default function Sidebar({ role, activePage, onNav, onLogout, user, notifCount = 0, requestCount = 0, theme = "dark" }) {
+export default function Sidebar({ role, activePage, onNav, onLogout, user, requestCount = 0, theme = "dark" }) {
   const [hov, setHov] = useState(null);
   const isLight = theme === "light";
 
@@ -40,7 +40,6 @@ export default function Sidebar({ role, activePage, onNav, onLogout, user, notif
 
   const items = navItems[role] || navItems.donor;
 
-  const roleLabels = { donor: "Food Donor", ngo: "NGO Portal", admin: "Administrator" };
   const roleColors = { donor: COLORS.amber, ngo: COLORS.mint, admin: "#7b68ee" };
   
   const activeColor = role === "ngo" ? COLORS.mint : roleColors[role];
@@ -134,7 +133,6 @@ export default function Sidebar({ role, activePage, onNav, onLogout, user, notif
             <div style={{ fontSize: 13, fontWeight: 600, color: isLight ? "#0f172a" : "white", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>
               {user?.name || "User"}
             </div>
-            <div style={{ fontSize: 11, color: isLight ? "rgba(15,23,42,0.55)" : "rgba(255,255,255,0.38)" }}>{roleLabels[role] || "User"}</div>
           </div>
         </div>
 

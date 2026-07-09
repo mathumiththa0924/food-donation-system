@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -37,14 +37,14 @@ export default function LiveTracker({ roomId, currentUserRole, donorLocation }) 
   const watchIdRef = useRef(null);
 
   useEffect(() => {
-    const newSocket = io("http://localhost:5000");
+    const newSocket = io(`http://${window.location.hostname}:5000`);
     setSocket(newSocket);
     
     newSocket.emit("join_room", roomId);
 
     newSocket.on("receive_location", (data) => {
-      // If Donor is watching, update NGO's location
-      if (currentUserRole === 'donor' && data.role === 'ngo') {
+      // If Donor or NGO is watching, update location based on who is travelling (NGO or Volunteer)
+      if ((currentUserRole === 'donor' || currentUserRole === 'ngo') && (data.role === 'ngo' || data.role === 'volunteer')) {
         setNgoLocation({ lat: data.lat, lng: data.lng });
       }
     });
@@ -54,9 +54,9 @@ export default function LiveTracker({ roomId, currentUserRole, donorLocation }) 
     };
   }, [roomId, currentUserRole]);
 
-  // If currentUser is NGO, watch their location and emit
+  // If currentUser is NGO or Volunteer, watch their location and emit
   useEffect(() => {
-    if (currentUserRole === 'ngo' && socket) {
+    if ((currentUserRole === 'ngo' || currentUserRole === 'volunteer') && socket) {
       if (navigator.geolocation) {
         watchIdRef.current = navigator.geolocation.watchPosition(
           (position) => {
@@ -68,7 +68,7 @@ export default function LiveTracker({ roomId, currentUserRole, donorLocation }) 
               roomId,
               lat: latitude,
               lng: longitude,
-              role: 'ngo'
+              role: currentUserRole
             });
           },
           (err) => console.error("Geolocation Error: ", err),

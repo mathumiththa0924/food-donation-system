@@ -14,3 +14,8 @@ export const getRequests = async () => {
   const response = await API.get("/requests");
   return response.data;
 };
+
+export const assignVolunteer = async (id) => {
+  const response = await API.put(`/requests/${id}/assign`);
+  return response.data;
+};

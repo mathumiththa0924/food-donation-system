@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function Logo({ size = "default" }) {
   const isSmall = size === "sm";
   const circleSize = isSmall ? "32px" : "38px";

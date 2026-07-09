@@ -11,16 +11,22 @@ dotenv.config();
 // ================= DB =================
 const connectDB = require("./config/db");
 
-// connect DB BEFORE starting server
-connectDB();
-
 const app = express();
+
+const frontendOrigins = [
+  process.env.FRONTEND_URL || "http://localhost:5173",
+  "http://localhost:4174"
+];
 
 // ================= MIDDLEWARE =================
 app.use(
   cors({
     origin: function (origin, callback) {
-      callback(null, true);
+      if (!origin || frontendOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
     },
     credentials: true,
   })
@@ -46,21 +52,6 @@ app.get("/", (req, res) => {
   res.json({ success: true, message: "Food Donation Backend Running" });
 });
 
-// ================= DEBUG ROUTE (TEMPORARY) =================
-app.get("/debug/users", async (req, res) => {
-  try {
-    const User = require("./models/User");
-    const users = await User.find({}, { password: 0 });
-    res.json({
-      success: true,
-      message: `Found ${users.length} users`,
-      users: users
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
 // ================= 404 HANDLER =================
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });
@@ -71,7 +62,11 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
-      callback(null, true);
+      if (!origin || frontendOrigins.includes(origin)) {
+        callback(null, origin);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
     },
     credentials: true,
   }
@@ -101,23 +96,46 @@ io.on("connection", (socket) => {
 
       const newMessage = await Message.create({
         senderId: data.senderId,
-        receiverId: data.receiverId,
+        receiverId: data.receiverId || undefined,
         requestId: data.requestId || undefined,
         moneyRequestId: data.moneyRequestId || undefined,
         text: data.text
       });
+      await newMessage.populate('senderId', 'name');
 
       const sender = await User.findById(data.senderId);
       const senderName = sender ? sender.name : "Someone";
 
-      const notif = await Notification.create({
-        recipientId: data.receiverId,
-        message: `New chat message from ${senderName}: "${data.text}"`,
-        type: 'new_message',
-        relatedId: data.moneyRequestId || data.requestId
-      });
+      let recipients = [];
+      if (data.requestId) {
+        const Request = require("./models/Request");
+        const reqDoc = await Request.findById(data.requestId).populate('foodId');
+        if (reqDoc) {
+          const ngoIdStr = reqDoc.ngoId?.toString();
+          const donorIdStr = reqDoc.foodId?.donor?.toString();
+          const volIdStr = reqDoc.volunteerId?.toString();
 
-      io.to(data.receiverId).emit("new_notification", notif);
+          if (ngoIdStr && ngoIdStr !== data.senderId) recipients.push(ngoIdStr);
+          if (donorIdStr && donorIdStr !== data.senderId) recipients.push(donorIdStr);
+          if (volIdStr && volIdStr !== data.senderId) recipients.push(volIdStr);
+        }
+      } else if (data.receiverId) {
+        recipients.push(data.receiverId);
+      }
+
+      // Unique recipients
+      recipients = [...new Set(recipients)];
+
+      for (const recId of recipients) {
+        const notif = await Notification.create({
+          recipientId: recId,
+          message: `New chat message from ${senderName}: "${data.text}"`,
+          type: 'new_message',
+          relatedId: data.moneyRequestId || data.requestId
+        });
+        io.to(recId).emit("new_notification", notif);
+      }
+
       io.to(roomId).emit("receive_message", newMessage);
     } catch (error) {
       console.error("Error saving message via socket:", error);
@@ -140,6 +158,66 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server & Socket running on port ${PORT}`);
-});
+// Background job: expire food donations past expiryTime
+const Food = require('./models/Food');
+const Notification = require('./models/Notification');
+const User = require('./models/User');
+
+const expireStaleDonations = async () => {
+  try {
+    const now = new Date();
+    const expired = await Food.find({ status: 'pending', expiryTime: { $lt: now } });
+    if (expired.length === 0) return;
+
+    for (const food of expired) {
+      food.status = 'expired';
+      food.statusHistory = [
+        ...food.statusHistory,
+        { status: 'expired', note: 'Automatically expired due to expiryTime', changedBy: null, changedAt: new Date() }
+      ];
+      await food.save();
+
+      // notify donor
+      try {
+        const notif = await Notification.create({
+          recipientId: food.donor,
+          message: `Your donation '${food.foodName}' has expired and is now hidden from NGOs.`,
+          type: 'donation_expired',
+          relatedId: food._id
+        });
+        const ioInst = app.get('io');
+        if (ioInst) ioInst.to(String(food.donor)).emit('new_notification', notif);
+      } catch (e) {
+        console.error('Error creating expiry notification:', e);
+      }
+    }
+    console.log(`Auto-expired ${expired.length} donations`);
+  } catch (err) {
+    console.error('Error running expireStaleDonations:', err);
+  }
+};
+
+// Run every 5 minutes
+setInterval(expireStaleDonations, 1000 * 60 * 5);
+
+const { ensureCanonicalAdmin } = require("./services/adminBootstrap");
+
+const startServer = async () => {
+  await connectDB();
+
+  try {
+    const { email, removedDuplicates } = await ensureCanonicalAdmin();
+    if (removedDuplicates > 0) {
+      console.log(`🔧 Admin bootstrap: removed ${removedDuplicates} duplicate admin(s)`);
+    }
+    console.log(`✅ Canonical admin ready: ${email}`);
+  } catch (err) {
+    console.error("❌ Admin bootstrap failed:", err.message);
+  }
+
+  server.listen(PORT, () => {
+    console.log(`🚀 Server & Socket running on port ${PORT}`);
+  });
+};
+
+startServer();

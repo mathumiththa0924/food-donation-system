@@ -50,9 +50,13 @@ const foodSchema = new mongoose.Schema({
   image: {
     type: String
   },
+  isEmergency: {
+    type: Boolean,
+    default: false
+  },
   status: {
     type: String,
-    enum: ['pending', 'picked_up', 'delivered'],
+    enum: ['pending', 'picked_up', 'delivered', 'expired'],
     default: 'pending'
   },
   adminStatus: {

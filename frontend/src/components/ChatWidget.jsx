@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import axios from "axios";
 
-const SOCKET_URL = "http://localhost:5000";
+const SOCKET_URL = `http://${window.location.hostname}:5000`;
 
 import LiveTracker from "./LiveTracker";
 
 const ChatWidget = ({ 
-  requestId, moneyRequestId, currentUserId, otherUserId, 
-  compact = false, title = "Chat with NGO",
+  requestId, moneyRequestId, currentUserId,
+  compact = false, title = "Donation Chat",
   currentUserRole, donorLocation
 }) => {
   const [messages, setMessages] = useState([]);
@@ -70,7 +70,6 @@ const ChatWidget = ({
 
     const messageData = {
       senderId: currentUserId,
-      receiverId: otherUserId,
       text: currentMessage.trim(),
       ...(moneyRequestId ? { moneyRequestId } : { requestId })
     };
@@ -122,14 +121,21 @@ const ChatWidget = ({
             {messages.map((msg, index) => {
               const senderId = String(msg.senderId?._id || msg.senderId);
               const isMe = senderId === String(currentUserId);
+              // optionally extract sender name if populated, for now just use isMe to style
               return (
                 <div
                   key={msg._id || index}
                   className={`chat-message ${isMe ? "chat-message-right" : "chat-message-left"}`}
                 >
                   <div className="chat-bubble">
+                    {!isMe && msg.senderId?.name && (
+                      <span style={{ fontSize: "10px", fontWeight: "bold", display: "block", marginBottom: "2px", opacity: 0.8 }}>
+                        {msg.senderId.name}
+                      </span>
+                    )}
                     <p>{msg.text}</p>
                     <span className="chat-timestamp">
+                      {/* eslint-disable-next-line react-hooks/purity */}
                       {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",

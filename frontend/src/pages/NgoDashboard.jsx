@@ -18,6 +18,8 @@ import { COLORS } from "../theme";
 import toast from "react-hot-toast";
 import ChatWidget from "../components/ChatWidget";
 import io from "socket.io-client";
+import MapComponent from "../components/MapComponent";
+import Leaderboard from "../components/Leaderboard";
 
 // ─── REUSABLE UI COMPONENTS (Internal for NGO Dashboard specific logic) ────
 function Badge({ children, color = "amber" }) {
@@ -93,7 +95,14 @@ function DonationCard({ donation, onRequest, onViewDetails, requested }) {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(25, 35, 29, 1) 0%, rgba(25, 35, 29, 0) 100%)" }} />
         
         {/* Badges on Image */}
-        <div style={{ position: "absolute", top: 12, right: 12 }}>
+        <div style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 8 }}>
+          {donation.isEmergency && (
+            <span style={{ 
+              background: "rgba(231,76,60,0.95)", 
+              color: "white", fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 20,
+              backdropFilter: "blur(4px)", boxShadow: "0 0 15px rgba(231,76,60,0.8)"
+            }}>🚨 URGENT</span>
+          )}
           <span style={{ 
             background: isVeg ? "rgba(46,155,78,0.9)" : "rgba(231,76,60,0.9)", 
             color: "white", fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20,
@@ -195,6 +204,12 @@ function DashboardPage({ availableDonations, requests, onNav, user, fundDonation
         <StatCard icon="🏆" label="Completed" value={completed} color={COLORS.amberLight} sub="Pickups done" />
       </div>
 
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 14, marginBottom: 22 }}>
+        <div>
+          <Leaderboard />
+        </div>
+      </div>
+
       {/* Available Donations Preview */}
       <div style={{ background: "rgba(126, 200, 160, 0.07)", border: `1px solid rgba(126, 200, 160, 0.2)`, borderRadius: 18, padding: "22px", marginBottom: 22 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
@@ -292,7 +307,7 @@ function DashboardPage({ availableDonations, requests, onNav, user, fundDonation
 }
 
 // ─── PAGE: BROWSE ─────────────────────────────────────────────────────────────
-function BrowsePage({ donations, requests, onRequest }) {
+function BrowsePage({ donations, requests, onRequest, user }) {
   const [search, setSearch] = useState("");
   const [district, setDistrict] = useState("");
   const [place, setPlace] = useState("");
@@ -301,6 +316,7 @@ function BrowsePage({ donations, requests, onRequest }) {
   const [requestModal, setRequestModal] = useState(null);
   const [reqQty, setReqQty] = useState("");
   const [reqMsg, setReqMsg] = useState("");
+  const [ngoCurrentLoc, setNgoCurrentLoc] = useState(() => user?.officeLocation || null);
 
   const filtered = donations.filter(d => {
     const foodNameStr = (d.foodName || "").toLowerCase();
@@ -380,8 +396,9 @@ function BrowsePage({ donations, requests, onRequest }) {
                 <div style={{ width: 60, height: 60, borderRadius: 16, background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>🍱</div>
               )}
               <div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "white" }}>{detailDonation.foodName}</div>
+              {detailDonation.claims && detailDonation.claims.length > 0 && (
                 <div style={{ fontSize: 14, color: "rgba(255,255,255,0.55)" }}>{detailDonation.donor?.name}</div>
+              )}
               </div>
             </div>
             <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 14, padding: "16px", marginBottom: 18 }}>
@@ -402,6 +419,24 @@ function BrowsePage({ donations, requests, onRequest }) {
                 </div>
               ))}
             </div>
+            {/* Map showing route from NGO (if available) to donor location */}
+            {typeof detailDonation.location === 'object' && detailDonation.location?.lat && detailDonation.location?.lng && (
+              <div style={{ marginBottom: 16 }}>
+                <MapComponent
+                  height="220px"
+                  readOnly={true}
+                  routeFrom={ngoCurrentLoc ? [ngoCurrentLoc.lat, ngoCurrentLoc.lng] : null}
+                  routeTo={[detailDonation.location.lat, detailDonation.location.lng]}
+                  markers={[]}
+                />
+              </div>
+            )}
+
+            {/* attempt to resolve NGO geolocation when details open */}
+            {detailDonation && navigator.geolocation && !ngoCurrentLoc && (function(){
+              try { navigator.geolocation.getCurrentPosition(pos => setNgoCurrentLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude })); } catch { /* ignore */ }
+              return null;
+            })()}
             
             {detailDonation.claims && detailDonation.claims.length > 0 && (
               <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: "14px", marginBottom: 20 }}>
@@ -509,7 +544,7 @@ function MyRequestsPage({ requests, onPickup, user }) {
           {activeChat?.requestId === r._id && (
             <div style={{ marginTop: -4, marginBottom: 16, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
               <button onClick={() => setActiveChat(null)} style={{ background: "transparent", color: "#e74c3c", border: "none", cursor: "pointer", fontSize: 12, marginBottom: 8, fontWeight: 600 }}>✖ Close Chat</button>
-              <ChatWidget requestId={r._id} currentUserId={user?._id} otherUserId={r.foodId?.donor?._id} currentUserRole="ngo" />
+              <ChatWidget requestId={r._id} currentUserId={user?._id} currentUserRole="ngo" />
             </div>
           )}
           </React.Fragment>
@@ -577,6 +612,7 @@ function ProfilePage({ user, setUser }) {
     address: user?.organization || "42 Main Street, Colombo 7", 
     district: "Colombo" 
   });
+  const [officeLoc, setOfficeLoc] = useState(user?.officeLocation || null);
   const [profileImage, setProfileImage] = useState(user?.profileImage || null);
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -601,6 +637,11 @@ function ProfilePage({ user, setUser }) {
       formData.append("name", form.name);
       formData.append("email", form.email);
       formData.append("phone", form.phone);
+      if (officeLoc) {
+        if (officeLoc.lat !== undefined) formData.append('officeLat', officeLoc.lat);
+        if (officeLoc.lng !== undefined) formData.append('officeLng', officeLoc.lng);
+        if (officeLoc.address) formData.append('officeAddress', officeLoc.address);
+      }
       if (imageFile) formData.append("profileImage", imageFile);
       
       const { updateProfile } = await import("../api/auth");
@@ -609,6 +650,8 @@ function ProfilePage({ user, setUser }) {
       localStorage.setItem("user", JSON.stringify(res.data));
       if (setUser) setUser(res.data);
       setProfileImage(res.data.profileImage);
+      // update officeLoc from response if provided
+      setOfficeLoc(res.data.officeLocation || officeLoc);
       setImageFile(null);
       setEdit(false); 
       setSaved(true); 
@@ -618,6 +661,31 @@ function ProfilePage({ user, setUser }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUseCurrentLocation = async () => {
+    if (!navigator.geolocation) return toast.error('Geolocation not supported');
+    toast.loading('Getting current location...');
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const data = await res.json();
+        const address = data?.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        setForm(f => ({ ...f, address }));
+        setOfficeLoc({ lat, lng, address });
+        toast.dismiss();
+        toast.success('Location set');
+      } catch {
+        setOfficeLoc({ lat, lng, address: '' });
+        toast.dismiss();
+        toast.success('Location coordinates set');
+      }
+    }, () => {
+      toast.dismiss();
+      toast.error('Failed to get location');
+    }, { enableHighAccuracy: true, timeout: 8000 });
   };
 
   return (
@@ -659,7 +727,6 @@ function ProfilePage({ user, setUser }) {
           </div>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: "white" }}>{form.name}</div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", marginTop: 3 }}>NGO Account</div>
           </div>
         </div>
 
@@ -671,6 +738,11 @@ function ProfilePage({ user, setUser }) {
             <Input label="District" value={form.district} onChange={set("district")} icon="🏘️" />
             <div style={{ gridColumn: "1/-1" }}>
               <Input label="Address" value={form.address} onChange={set("address")} icon="📍" />
+              {edit && (
+                <div style={{ marginTop: 8 }}>
+                  <button onClick={handleUseCurrentLocation} type="button" style={{ background: "transparent", border: "none", color: COLORS.mint, fontWeight: 700, cursor: "pointer" }}>📍 Use My Current Location</button>
+                </div>
+              )}
             </div>
             <div style={{ gridColumn: "1/-1", display: "flex", gap: 12 }}>
               <Btn variant="secondary" onClick={() => { setEdit(false); setProfileImage(user?.profileImage || null); setImageFile(null); }} style={{ flex: 1 }} disabled={loading}>Cancel</Btn>
@@ -749,7 +821,6 @@ function FeedbacksPage({ completedRequests, onLoadFeedbacks, refreshTrigger }) {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadFeedbacks();
   }, [refreshTrigger]);
 
@@ -1267,7 +1338,18 @@ export default function NGODashboard({ theme = "dark" }) {
 
       // Verify token with server
       try {
-        await verifyAuth();
+        const authRes = await verifyAuth();
+        const verifiedUser = authRes?.user || authRes?.data?.user || null;
+        if (verifiedUser) {
+          setUser(verifiedUser);
+          localStorage.setItem("user", JSON.stringify(verifiedUser));
+        }
+        if (verifiedUser?.role !== "ngo") {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          navigate("/login");
+          return;
+        }
       } catch (err) {
         console.error("Auth verification failed:", err);
         localStorage.removeItem("token");
@@ -1288,7 +1370,7 @@ export default function NGODashboard({ theme = "dark" }) {
 
   useEffect(() => {
     if (!user?._id) return;
-    const socket = io("http://localhost:5000");
+    const socket = io(`http://${window.location.hostname}:5000`);
     socket.emit("join_user_room", user._id);
     
     socket.on("new_notification", (notif) => {
@@ -1297,6 +1379,9 @@ export default function NGODashboard({ theme = "dark" }) {
         toast(notif.message, { icon: "💬" });
       } else {
         toast(notif.message, { icon: "🔔" });
+      }
+      if (notif.type === "general" || notif.type === "new_donation" || notif.type === "status_change") {
+        loadData();
       }
     });
 
@@ -1312,6 +1397,10 @@ export default function NGODashboard({ theme = "dark" }) {
 
   const handleRequest = async (donation, qty, message) => {
     try {
+      if (user?.role !== "ngo") {
+        toast.error("Only NGO accounts can request food.");
+        return;
+      }
       await createRequest({ foodId: donation._id, qty, message });
       toast.success(`Request sent for "${donation.foodName}"!`);
       loadData();
@@ -1339,7 +1428,7 @@ export default function NGODashboard({ theme = "dark" }) {
 
   const pages = {
     dashboard: <DashboardPage availableDonations={availableDonations} requests={requests} onNav={setPage} user={user} fundDonations={fundDonations} feedbacks={feedbacks} />,
-    browse: <BrowsePage donations={availableDonations} requests={requests} onRequest={handleRequest} />,
+    browse: <BrowsePage donations={availableDonations} requests={requests} onRequest={handleRequest} user={user} />,
     myRequests: <MyRequestsPage requests={requests} onPickup={handlePickup} user={user} />,
     pickups: <PickupsPage requests={requests} />,
     fundRequests: <FundRequestsPage fundRequests={fundRequests} fundDonations={fundDonations} reload={loadData} user={user} />,

@@ -1,18 +1,21 @@
 import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { resetPassword } from "../api/auth";
+import { requestPasswordReset, resetPassword } from "../api/auth";
 import FloatingFood from "../components/FloatingFood";
 
 export default function ForgotPassword({ theme = "dark" }) {
   const isLight = theme === "light";
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState("request");
   const [sent, setSent] = useState(false);
+  const [infoMessage, setInfoMessage] = useState("");
   const [formError, setFormError] = useState("");
 
   const emailError = useMemo(() => {
@@ -22,6 +25,11 @@ export default function ForgotPassword({ theme = "dark" }) {
     if (!emailRegex.test(email)) return "Invalid email format.";
     return "";
   }, [email]);
+
+  const resetCodeError = useMemo(() => {
+    if (!resetCode) return "Reset code is required.";
+    return "";
+  }, [resetCode]);
 
   const passwordError = useMemo(() => {
     if (!newPassword) return "Password is required.";
@@ -39,19 +47,39 @@ export default function ForgotPassword({ theme = "dark" }) {
     return "";
   }, [confirmPassword, newPassword]);
 
-  const isFormValid = !emailError && !passwordError && !confirmPasswordError;
+  const isRequestValid = !emailError;
+  const isResetValid = !emailError && !resetCodeError && !passwordError && !confirmPasswordError;
 
-  const handleReset = async (e) => {
+  const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     setFormError("");
-    if (!isFormValid) return;
-    
+    setInfoMessage("");
+
+    const codeEntered = !!resetCode.trim();
+
     try {
       setLoading(true);
-      await resetPassword({ 
-        email: email.trim(), 
-        newPassword, 
-        confirmPassword 
+
+      if (!codeEntered) {
+        if (!isRequestValid) return;
+
+        await requestPasswordReset({ email: email.trim() });
+        setStage("verify");
+        setInfoMessage("If that email exists, a reset code has been sent. Check your inbox.");
+        return;
+      }
+
+      if (stage !== "verify") {
+        setStage("verify");
+      }
+
+      if (!isResetValid) return;
+
+      await resetPassword({
+        email: email.trim(),
+        resetCode: resetCode.trim(),
+        newPassword,
+        confirmPassword,
       });
       setSent(true);
     } catch (err) {
@@ -116,7 +144,7 @@ export default function ForgotPassword({ theme = "dark" }) {
         zIndex: 1
       }}>
         {!sent ? (
-          <form onSubmit={handleReset}>
+          <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: "32px" }}>
               <p style={{ color: "#d68840", fontSize: "12px", fontWeight: "700", letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "8px" }}>
                 ACCOUNT RECOVERY
@@ -126,6 +154,7 @@ export default function ForgotPassword({ theme = "dark" }) {
               </h2>
             </div>
 
+            {infoMessage && <p style={{ color: "#b8f3b8", fontSize: "14px", marginBottom: "20px", background: "rgba(40, 90, 40, 0.16)", padding: "10px", borderRadius: "8px", border: "1px solid rgba(76, 175, 80, 0.2)" }}>{infoMessage}</p>}
             {formError && <p style={{ color: "#ffb3b3", fontSize: "14px", marginBottom: "20px", background: "rgba(255,0,0,0.1)", padding: "10px", borderRadius: "8px", border: "1px solid rgba(255,0,0,0.2)" }}>{formError}</p>}
 
             <div style={{ marginBottom: "20px" }}>
@@ -137,94 +166,116 @@ export default function ForgotPassword({ theme = "dark" }) {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value.trim())}
-                  style={{ ...inputStyle, border: email && emailError ? "1px solid #ff4d4f" : inputStyle.border }}
-                  onFocus={(e) => { e.target.style.border = "1px solid #d68840"; e.target.style.background = "rgba(255, 255, 255, 0.06)"; }}
-                  onBlur={(e) => { e.target.style.border = email && emailError ? "1px solid #ff4d4f" : "1px solid rgba(255, 255, 255, 0.1)"; e.target.style.background = "rgba(255, 255, 255, 0.03)"; }}
+                  disabled={stage === "verify"}
+                  style={{ ...inputStyle, border: email && emailError ? "1px solid #ff4d4f" : inputStyle.border, opacity: stage === "verify" ? 0.6 : 1 }}
+                  onFocus={(e) => { if(stage !== "verify") { e.target.style.border = "1px solid #d68840"; e.target.style.background = "rgba(255, 255, 255, 0.06)"; } }}
+                  onBlur={(e) => { if(stage !== "verify") { e.target.style.border = email && emailError ? "1px solid #ff4d4f" : "1px solid rgba(255, 255, 255, 0.1)"; e.target.style.background = "rgba(255, 255, 255, 0.03)"; } }}
                 />
                 {email && emailError && <span style={{ color: "#ff4d4f", fontSize: "12px", position: "absolute", bottom: "-18px", left: "4px" }}>{emailError}</span>}
               </div>
             </div>
 
-            <div style={{ marginBottom: "20px", marginTop: email && emailError ? "12px" : "0" }}>
-              <label style={labelStyle}>NEW PASSWORD</label>
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "14px", filter: "opacity(0.8)" }}>🔒</span>
-                <input 
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter new password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  style={{ ...inputStyle, border: newPassword && passwordError ? "1px solid #ff4d4f" : inputStyle.border }}
-                  onFocus={(e) => { e.target.style.border = "1px solid #d68840"; e.target.style.background = "rgba(255, 255, 255, 0.06)"; }}
-                  onBlur={(e) => { e.target.style.border = newPassword && passwordError ? "1px solid #ff4d4f" : "1px solid rgba(255, 255, 255, 0.1)"; e.target.style.background = "rgba(255, 255, 255, 0.03)"; }}
-                />
-                <div 
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center" }}
-                >
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a8c80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a8c80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                  )}
+            {stage === "verify" && (
+              <div style={{ animation: "slideUp 0.3s ease" }}>
+                <div style={{ marginBottom: "20px", marginTop: email && emailError ? "12px" : "0" }}>
+                  <label style={labelStyle}>RESET CODE</label>
+                  <div style={{ position: "relative" }}>
+                    <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "14px", filter: "opacity(0.8)" }}>🔑</span>
+                    <input
+                      type="text"
+                      placeholder="Enter 6-digit code from email"
+                      value={resetCode}
+                      onChange={(e) => setResetCode(e.target.value.trim())}
+                      style={{ ...inputStyle, border: resetCode && resetCodeError ? "1px solid #ff4d4f" : inputStyle.border, paddingLeft: "48px" }}
+                      onFocus={(e) => { e.target.style.border = "1px solid #d68840"; e.target.style.background = "rgba(255, 255, 255, 0.06)"; }}
+                      onBlur={(e) => { e.target.style.border = resetCode && resetCodeError ? "1px solid #ff4d4f" : "1px solid rgba(255, 255, 255, 0.1)"; e.target.style.background = "rgba(255, 255, 255, 0.03)"; }}
+                    />
+                    {resetCode && resetCodeError && <span style={{ color: "#ff4d4f", fontSize: "12px", position: "absolute", bottom: "-18px", left: "4px" }}>{resetCodeError}</span>}
+                  </div>
                 </div>
-                {newPassword && passwordError && <span style={{ color: "#ff4d4f", fontSize: "12px", position: "absolute", bottom: "-18px", left: "4px" }}>{passwordError}</span>}
-              </div>
-            </div>
 
-            <div style={{ marginBottom: "32px", marginTop: newPassword && passwordError ? "12px" : "0" }}>
-              <label style={labelStyle}>CONFIRM PASSWORD</label>
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "14px", filter: "opacity(0.8)" }}>🔒</span>
-                <input 
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Confirm your new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  style={{ ...inputStyle, border: confirmPassword && confirmPasswordError ? "1px solid #ff4d4f" : inputStyle.border }}
-                  onFocus={(e) => { e.target.style.border = "1px solid #d68840"; e.target.style.background = "rgba(255, 255, 255, 0.06)"; }}
-                  onBlur={(e) => { e.target.style.border = confirmPassword && confirmPasswordError ? "1px solid #ff4d4f" : "1px solid rgba(255, 255, 255, 0.1)"; e.target.style.background = "rgba(255, 255, 255, 0.03)"; }}
-                />
-                <div 
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center" }}
-                >
-                  {showConfirmPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a8c80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a8c80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                  )}
+                <div style={{ marginBottom: "20px", marginTop: resetCode && resetCodeError ? "12px" : "0" }}>
+                  <label style={labelStyle}>NEW PASSWORD</label>
+                  <div style={{ position: "relative" }}>
+                    <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "14px", filter: "opacity(0.8)" }}>🔒</span>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter new password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      style={{ ...inputStyle, border: newPassword && passwordError ? "1px solid #ff4d4f" : inputStyle.border }}
+                      onFocus={(e) => { e.target.style.border = "1px solid #d68840"; e.target.style.background = "rgba(255, 255, 255, 0.06)"; }}
+                      onBlur={(e) => { e.target.style.border = newPassword && passwordError ? "1px solid #ff4d4f" : "1px solid rgba(255, 255, 255, 0.1)"; e.target.style.background = "rgba(255, 255, 255, 0.03)"; }}
+                    />
+                    <div
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center" }}
+                    >
+                      {showPassword ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a8c80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a8c80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                      )}
+                    </div>
+                    {newPassword && passwordError && <span style={{ color: "#ff4d4f", fontSize: "12px", position: "absolute", bottom: "-18px", left: "4px" }}>{passwordError}</span>}
+                  </div>
                 </div>
-                {confirmPassword && confirmPasswordError && <span style={{ color: "#ff4d4f", fontSize: "12px", position: "absolute", bottom: "-18px", left: "4px" }}>{confirmPasswordError}</span>}
+
+                <div style={{ marginBottom: "32px", marginTop: newPassword && passwordError ? "12px" : "0" }}>
+                  <label style={labelStyle}>CONFIRM PASSWORD</label>
+                  <div style={{ position: "relative" }}>
+                    <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontSize: "14px", filter: "opacity(0.8)" }}>🔒</span>
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm your new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      style={{ ...inputStyle, border: confirmPassword && confirmPasswordError ? "1px solid #ff4d4f" : inputStyle.border }}
+                      onFocus={(e) => { e.target.style.border = "1px solid #d68840"; e.target.style.background = "rgba(255, 255, 255, 0.06)"; }}
+                      onBlur={(e) => { e.target.style.border = confirmPassword && confirmPasswordError ? "1px solid #ff4d4f" : "1px solid rgba(255, 255, 255, 0.1)"; e.target.style.background = "rgba(255, 255, 255, 0.03)"; }}
+                    />
+                    <div
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center" }}
+                    >
+                      {showConfirmPassword ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a8c80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a8c80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                      )}
+                    </div>
+                    {confirmPassword && confirmPasswordError && <span style={{ color: "#ff4d4f", fontSize: "12px", position: "absolute", bottom: "-18px", left: "4px" }}>{confirmPasswordError}</span>}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             <button 
               type="submit" 
-              disabled={loading || !isFormValid}
+              disabled={loading || (stage === "request" ? !isRequestValid : !isResetValid)}
               style={{
                 width: "100%",
                 padding: "16px",
                 background: "linear-gradient(90deg, #ed9647 0%, #d87e32 100%)",
-                opacity: isFormValid && !loading ? 1 : 0.6,
+                opacity: (stage === "request" ? !isRequestValid : !isResetValid) && !loading ? 0.6 : 1,
                 color: "white",
                 border: "none",
                 borderRadius: "12px",
                 fontSize: "16px",
                 fontWeight: "700",
-                cursor: isFormValid && !loading ? "pointer" : "not-allowed",
+                cursor: (stage === "request" ? !isRequestValid : !isResetValid) && !loading ? "not-allowed" : "pointer",
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
                 gap: "8px",
-                boxShadow: isFormValid ? "0 8px 20px rgba(237, 150, 71, 0.25)" : "none",
+                boxShadow: (stage === "request" ? !isRequestValid : !isResetValid) ? "none" : "0 8px 20px rgba(237, 150, 71, 0.25)",
                 transition: "transform 0.1s, boxShadow 0.1s, background 0.3s, opacity 0.3s"
               }}
-              onMouseDown={(e) => isFormValid && !loading && (e.currentTarget.style.transform = "scale(0.98)")}
-              onMouseUp={(e) => isFormValid && !loading && (e.currentTarget.style.transform = "scale(1)")}
-              onMouseLeave={(e) => isFormValid && !loading && (e.currentTarget.style.transform = "scale(1)")}
+              onMouseDown={(e) => (stage === "request" ? isRequestValid : isResetValid) && !loading ? (e.currentTarget.style.transform = "scale(0.98)") : null}
+              onMouseUp={(e) => (stage === "request" ? isRequestValid : isResetValid) && !loading ? (e.currentTarget.style.transform = "scale(1)") : null}
+              onMouseLeave={(e) => (stage === "request" ? isRequestValid : isResetValid) && !loading ? (e.currentTarget.style.transform = "scale(1)") : null}
             >
-              {loading ? "Resetting..." : "Reset Password 🔒"}
+              {loading ? "Processing..." : (stage === "request" ? "Send Code" : "Reset Password")}
             </button>
 
             <p style={{ textAlign: "center", marginTop: "32px", fontSize: "14px", color: "#8b9c91" }}>
